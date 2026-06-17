@@ -1,0 +1,16 @@
+node_modules
+build
+.docs
+.coverage
+package-lock.json
+yarn.lock
+.vscode
+.gitignore
+.eslintrc.cjs
+.eslintignore
+.prettierrc.json
+jest.config.cjs
+tsconfig.json
+test
+examples
+.github

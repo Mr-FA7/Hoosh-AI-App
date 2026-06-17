@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist_electron/
+build/
+models/
+*.log
+.DS_Store
+.fake
+.cursor/
+.vscode/
+.fa7/
+.gira/

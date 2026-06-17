@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+FALLBACK_SCRIPT="/Users/mr.fa7/Desktop/needed/ollama-main/scripts/create-dmg.sh"
+
+if [ -x "$FALLBACK_SCRIPT" ]; then
+  exec "$FALLBACK_SCRIPT" "$@"
+fi
+
+echo "create-dmg shim error: fallback script not found or not executable at $FALLBACK_SCRIPT" 1>&2
+exit 127

@@ -1,0 +1,27 @@
+{
+  "name": "universal-ai-terminal",
+  "version": "0.1.0",
+  "description": "Universal AI Terminal (UAT) — local-first, cross-platform terminal intelligence platform",
+  "type": "module",
+  "bin": {
+    "uat": "./bin/uat.mjs"
+  },
+  "main": "./src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node bin/uat.mjs",
+    "doctor": "node bin/uat.mjs doctor",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "terminal",
+    "cli",
+    "cross-platform",
+    "ollama",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}

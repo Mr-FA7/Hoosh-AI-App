@@ -1,0 +1,35 @@
+{
+  "watch": [
+    "companion.js",
+    "systemHealth.js",
+    "kernel.js",
+    "indexer.js",
+    "resourceManager.js",
+    "ollamaManager.js",
+    "githubManager.js",
+    "giraBdtmKernel.js",
+    "kavoshBrowserKernel.js",
+    "companion*.js",
+    "fa7-plugins/**"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules/**",
+    "dist/**",
+    "dist_electron/**",
+    "src/**",
+    "public/**",
+    "assets/**",
+    "EX/**",
+    ".git/**",
+    ".cursor/**",
+    ".vscode/**",
+    "models/**",
+    "sandbox/**",
+    "uat/**",
+    "vendor/**",
+    "*.log"
+  ],
+  "delay": 300
+}
+

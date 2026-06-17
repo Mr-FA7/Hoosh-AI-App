@@ -1,0 +1,7 @@
+{
+  "name": "uat-example-plugin",
+  "version": "0.1.0",
+  "description": "Example UAT plugin — registers a noop hook",
+  "type": "module",
+  "main": "index.js"
+}

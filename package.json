@@ -1,0 +1,106 @@
+{
+  "name": "fa7-os",
+  "version": "1.0.0",
+  "description": "FA7 OS — IDE با Fard Terminal، Kavosh و Gira",
+  "main": "electron-main.js",
+  "scripts": {
+    "dev": "concurrently -n companion,vite -c blue,green \"nodemon companion.js\" \"vite\"",
+    "companion": "nodemon companion.js",
+    "start": "npm run dev",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "electron:start": "concurrently -n app,electron -c green,magenta \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.fa7.os",
+    "productName": "FA7 OS",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "asarUnpack": [
+      "**/node_modules/node-pty/**"
+    ],
+    "mac": {
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg"
+      ]
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "companion.js",
+      "kernel.js",
+      "indexer.js",
+      "ollamaManager.js",
+      "systemHealth.js",
+      "companionShellPty.js",
+      "companionStudioDev.js",
+      "companionOllamaPull.js",
+      "companionOllamaApiProxy.js",
+      "companionUatMount.js",
+      "companionVmLab.js",
+      "companionVmLabEmbeddedQemu.js",
+      "companionOllamaRuntime.js",
+      "companionOllamaRuntimeDownload.js",
+      "companionFa7Plugins.js",
+      "kavoshBrowserKernel.js",
+      "giraBdtmKernel.js",
+      "githubManager.js",
+      "negahRunner.js",
+      "composeBuildPipeline.js",
+      "fa7-plugins/**/*",
+      "electron-main.js",
+      "preload.js",
+      "package.json",
+      "lib/**/*",
+      "tools/**/*"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.15.0",
+    "@xterm/xterm": "^5.5.0",
+    "adm-zip": "^0.5.16",
+    "autoprefixer": "^10.4.27",
+    "axios": "^1.13.6",
+    "body-parser": "^2.2.2",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "framer-motion": "^12.38.0",
+    "fs-extra": "^11.3.4",
+    "lucide-react": "^1.6.0",
+    "node-pty": "^1.1.0",
+    "ollama": "^0.6.3",
+    "postcss": "^8.5.8",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.2.2",
+    "ws": "^8.20.0",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/fs-extra": "^11.0.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.3.0",
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1",
+    "nodemon": "^3.1.14",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.2",
+    "wait-on": "^9.0.4"
+  }
+}

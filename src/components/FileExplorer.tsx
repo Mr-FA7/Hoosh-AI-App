@@ -11,11 +11,12 @@ interface FileExplorerProps {
   activeFile: string | null;
   onFileSelect: (path: string) => void;
   onRefresh: () => void;
+  onProjectChange?: (path: string) => void;
 }
 
 type FsEntry = { name: string; path: string; isDirectory: boolean };
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0, activeFile, onFileSelect, onRefresh }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0, activeFile, onFileSelect, onRefresh, onProjectChange }) => {
   const { t } = useI18n();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -68,9 +69,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
 
   const handleOpenProject = async () => {
     try {
-      await axios.post(`${API_BASE}/v3/project/open`, { path: newPath });
+      const res = await axios.post(`${API_BASE}/v3/project/open`, { path: newPath });
+      const opened = res.data?.path || newPath;
       setIsEditingPath(false);
       fetchProjectInfo();
+      onProjectChange?.(opened);
       onRefresh();
     } catch (e: any) {
       alert(t('explorer.alertOpenFailed') + ' ' + (e.response?.data?.error || e.message));

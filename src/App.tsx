@@ -97,12 +97,12 @@ const App: React.FC = () => {
       .then(res => {
         if (res.data?.path) {
           setProjectRoot(res.data.path);
+          fetchFiles();
         }
       })
       .catch((err) => {
         console.warn('[App] Failed to fetch initial project root:', err);
       });
-    fetchFiles();
   }, [fetchFiles]);
 
   /** Keep explorer in sync after external deletes (Finder, terminal, etc.) */
@@ -303,6 +303,21 @@ const App: React.FC = () => {
       }
   };
 
+  const handleCloseProject = async () => {
+    try {
+      await axios.post(`${API_BASE}/v3/project/close`);
+      setProjectRoot(null);
+      setFiles([]);
+      setWorkspaceTabs([]);
+      setActiveTabIndex(-1);
+      setActiveFile(null);
+      setContent('');
+      setViewMode('editor');
+    } catch (err: any) {
+      alert('Failed to close project: ' + (err?.response?.data?.error || err?.message));
+    }
+  };
+
   const handleSave = async (newContent: string) => {
     if (!activeFile) return;
     setIsSaving(true);
@@ -353,7 +368,8 @@ const App: React.FC = () => {
                   explorerSyncKey={explorerSyncKey}
                   activeFile={activeFile} 
                   onFileSelect={handleFileSelect} 
-                  onRefresh={fetchFiles} 
+                  onRefresh={fetchFiles}
+                  onProjectChange={setProjectRoot}
                 />
               </motion.div>
             )}
@@ -399,24 +415,22 @@ const App: React.FC = () => {
                     {viewMode === 'uat' && <UatView />}
                     {viewMode === 'settings' && (
                       <div style={{ height: '100%', overflow: 'auto' }}>
-                        {!projectRoot && (
-                          <div style={{ padding: '14px 20px 0' }}>
-                            <button
-                              onClick={() => setViewMode('editor')}
-                              style={{
-                                background: 'transparent',
-                                border: '1px solid hsl(var(--border) / 0.4)',
-                                borderRadius: '8px',
-                                color: 'hsl(var(--text-secondary))',
-                                fontSize: '12px',
-                                padding: '6px 10px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {t('app.backToSelector')}
-                            </button>
-                          </div>
-                        )}
+                        <div style={{ padding: '14px 20px 0' }}>
+                          <button
+                            onClick={() => (projectRoot ? void handleCloseProject() : setViewMode('editor'))}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid hsl(var(--border) / 0.4)',
+                              borderRadius: '8px',
+                              color: 'hsl(var(--text-secondary))',
+                              fontSize: '12px',
+                              padding: '6px 10px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {projectRoot ? t('app.switchProject') : t('app.backToSelector')}
+                          </button>
+                        </div>
                         <SettingsView />
                       </div>
                     )}

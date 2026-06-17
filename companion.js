@@ -26,17 +26,64 @@ const { loadFa7Plugins } = require('./companionFa7Plugins');
 const { KavoshBrowserKernel } = require('./kavoshBrowserKernel');
 const { GiraBdtmKernel } = require('./giraBdtmKernel');
 
+const os = require('os');
 const PORT = 3001;
 const PTY_WS_PORT = Number(process.env.FA7_PTY_PORT) || 3002;
-const SYSTEM_DIR = path.join(require('os').homedir(), '.aivon-os');
+const SYSTEM_DIR = path.join(os.homedir(), '.aivon-os');
 const CONFIG_PATH = path.join(SYSTEM_DIR, 'fa7_config.json');
 const RECENT_PATH = path.join(SYSTEM_DIR, 'recent-projects.json');
 
 // Ensure System directory exists
 fs.ensureDirSync(SYSTEM_DIR);
 
-let currentProjectRoot = process.env.FA7_PROJECT_ROOT || process.cwd();
-let notebookPath = path.join(currentProjectRoot, '.fa7', 'notebook.md');
+function isValidProjectDirectory(dirPath) {
+  try {
+    const p = path.resolve(String(dirPath));
+    if (!fs.existsSync(p)) return false;
+    return fs.lstatSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Only restore a project the user explicitly saved — never default to the app install folder. */
+function loadInitialProjectRoot() {
+  const tryPath = (raw) => {
+    if (!raw || typeof raw !== 'string') return null;
+    const p = path.resolve(raw.trim());
+    return isValidProjectDirectory(p) ? p : null;
+  };
+
+  if (process.env.FA7_PROJECT_ROOT) {
+    const fromEnv = tryPath(process.env.FA7_PROJECT_ROOT);
+    if (fromEnv) return fromEnv;
+  }
+
+  if (fs.existsSync(CONFIG_PATH)) {
+    try {
+      const config = fs.readJsonSync(CONFIG_PATH);
+      const fromConfig = tryPath(config.projectRoot);
+      if (fromConfig) return fromConfig;
+    } catch (e) {
+      console.error('[Config] Failed to load config.json', e);
+    }
+  }
+
+  return null;
+}
+
+function getPtyCwd() {
+  return currentProjectRoot || os.homedir();
+}
+
+function getServiceRoot() {
+  return currentProjectRoot || SYSTEM_DIR;
+}
+
+let currentProjectRoot = loadInitialProjectRoot();
+let notebookPath = currentProjectRoot
+  ? path.join(currentProjectRoot, '.fa7', 'notebook.md')
+  : null;
 
 // Ensure FA7 system directory exists
 async function ensureFa7Dir(root) {
@@ -58,20 +105,12 @@ async function initNotebook(root) {
     }
 }
 
-// Persistence Loader
-if (fs.existsSync(CONFIG_PATH)) {
-  try {
-    const config = fs.readJsonSync(CONFIG_PATH);
-    if (config.projectRoot && fs.existsSync(config.projectRoot)) {
-      currentProjectRoot = config.projectRoot;
-    }
-  } catch (e) {
-    console.error('[Config] Failed to load config.json', e);
-  }
-}
-
 function saveConfig() {
   try {
+    if (!currentProjectRoot) {
+      if (fs.existsSync(CONFIG_PATH)) fs.removeSync(CONFIG_PATH);
+      return;
+    }
     fs.writeJsonSync(CONFIG_PATH, { projectRoot: currentProjectRoot }, { spaces: 2 });
   } catch (e) {
     console.error('[Config] Failed to save config.json', e);
@@ -98,16 +137,17 @@ async function main() {
 
   const { port: resolvedPtyPort } = await companionShellPty.startPtyWebSocketServer({
     port: PTY_WS_PORT,
-    defaultCwd: currentProjectRoot
+    defaultCwd: getPtyCwd()
   });
-  companionShellPty.updateDefaultCwd(currentProjectRoot);
+  companionShellPty.updateDefaultCwd(getPtyCwd());
   console.log('[FA7 OS] Fard Terminal PTY WebSocket: ws://127.0.0.1:' + resolvedPtyPort);
 
-  let indexer = new Indexer(currentProjectRoot);
-  let kernel = new AgentKernel(currentProjectRoot, ollamaHttp(), indexer);
-  let engine = new OllamaManager(currentProjectRoot, ollamaHttp());
+  const bootServiceRoot = getServiceRoot();
+  let indexer = new Indexer(bootServiceRoot);
+  let kernel = new AgentKernel(bootServiceRoot, ollamaHttp(), indexer);
+  let engine = new OllamaManager(bootServiceRoot, ollamaHttp());
   const negah = new NegahAgent(ollamaHttp());
-  const negahRunner = new NegahRunner(currentProjectRoot);
+  const negahRunner = new NegahRunner(getPtyCwd());
   const github = new GitHubManager({
     systemDir: SYSTEM_DIR,
     getProjectRoot: () => currentProjectRoot
@@ -160,7 +200,7 @@ async function main() {
   const initServices = () => {
     engine.init().then(() => console.log('[Engine] Localized storage ready'));
     kernel.init().then(() => console.log('[Kernel] Ready'));
-    indexer.scan();
+    if (currentProjectRoot) indexer.scan();
   };
 
   await github.init();
@@ -488,7 +528,17 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   // Project Management API
   app.get('/api/v3/project/path', (req, res) => {
+    if (!currentProjectRoot) {
+      return res.json({ path: null, name: null });
+    }
     res.json({ path: currentProjectRoot, name: path.basename(currentProjectRoot) });
+  });
+
+  app.post('/api/v3/project/close', (req, res) => {
+    currentProjectRoot = null;
+    notebookPath = null;
+    saveConfig();
+    res.json({ ok: true });
   });
 
   app.post('/api/v3/project/open', async (req, res) => {
@@ -504,6 +554,9 @@ app.get('/api/ai/system-stats', (req, res) => {
       }
 
       currentProjectRoot = path.resolve(newPath);
+      notebookPath = path.join(currentProjectRoot, '.fa7', 'notebook.md');
+      await ensureFa7Dir(currentProjectRoot);
+      await initNotebook(currentProjectRoot);
       saveConfig();
       saveRecentProject(currentProjectRoot, path.basename(currentProjectRoot));
 
@@ -513,7 +566,7 @@ app.get('/api/ai/system-stats', (req, res) => {
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       negahRunner.setProjectRoot(currentProjectRoot);
       companionShellPty.updateDefaultCwd(currentProjectRoot);
-      
+
       initServices();
       
       console.log(`[FA7 OS] Switched project root to: ${currentProjectRoot}`);
@@ -698,7 +751,7 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.post('/api/shell/open-external-terminal', async (req, res) => {
     const cwd = req.body?.cwd;
-    const d = cwd && fs.existsSync(cwd) ? cwd : currentProjectRoot;
+    const d = cwd && fs.existsSync(cwd) ? cwd : getPtyCwd();
     res.json(await companionShellPty.openSystemTerminal(d));
   });
 
@@ -722,7 +775,7 @@ app.get('/api/ai/system-stats', (req, res) => {
       if (blocked.some((re) => re.test(command))) {
         return res.status(400).json({ ok: false, error: 'Blocked dangerous command.' });
       }
-      exec(command, { cwd: currentProjectRoot, timeout: 120000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+      exec(command, { cwd: getPtyCwd(), timeout: 120000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
         if (error) {
           return res.json({
             ok: false,
@@ -1032,6 +1085,7 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.get(['/api/files', '/api/v3/files'], async (req, res) => {
     try {
+      if (!currentProjectRoot) return res.json([]);
       const dir = req.query.path ? path.join(currentProjectRoot, req.query.path) : currentProjectRoot;
       const files = await fs.readdir(dir);
       const result = [];
@@ -1061,6 +1115,9 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.get(['/api/file', '/api/v3/file'], async (req, res) => {
     try {
+      if (!currentProjectRoot) {
+        return res.status(400).json({ error: 'No project is open' });
+      }
       const p = req.query.path;
       const filePath = path.isAbsolute(p) ? p : path.join(currentProjectRoot, p);
       let st;
@@ -1083,7 +1140,11 @@ app.get('/api/ai/system-stats', (req, res) => {
     try {
       const { path: newPath } = req.body;
       if (!newPath) return res.status(400).json({ error: 'Missing path' });
-      currentProjectRoot = newPath;
+      const resolved = path.resolve(newPath);
+      if (!isValidProjectDirectory(resolved)) {
+        return res.status(400).json({ error: 'Valid directory path is required' });
+      }
+      currentProjectRoot = resolved;
       notebookPath = path.join(currentProjectRoot, '.fa7', 'notebook.md');
       await ensureFa7Dir(currentProjectRoot);
       await initNotebook(currentProjectRoot);
@@ -2184,10 +2245,12 @@ app.get('/api/ai/system-stats', (req, res) => {
     }
   });
 
-  // Save current project to recent on start ONLY if it's a valid project dir
-  const hasFa7 = fs.existsSync(path.join(currentProjectRoot, '.fa7'));
-  if (hasFa7) {
-    saveRecentProject(currentProjectRoot, path.basename(currentProjectRoot));
+  // Save current project to recent on start ONLY if user already chose a project
+  if (currentProjectRoot) {
+    const hasFa7 = fs.existsSync(path.join(currentProjectRoot, '.fa7'));
+    if (hasFa7) {
+      saveRecentProject(currentProjectRoot, path.basename(currentProjectRoot));
+    }
   }
 
   app.post('/api/v3/project/create', async (req, res) => {
@@ -2270,7 +2333,7 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`FA7 OS companion on http://localhost:${PORT}`);
-    console.log(`Project Root: ${currentProjectRoot}`);
+    console.log(`Project Root: ${currentProjectRoot || '(none — select a project in the UI)'}`);
   });
 
   // Keep process alive

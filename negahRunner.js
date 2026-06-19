@@ -47,9 +47,11 @@ class NegahRunner {
     };
   }
 
-  async executeCommand(command = {}) {
+  async executeCommand(command = {}, opts = {}) {
     const action = String(command.action || '').trim();
     const params = command.params || {};
+    const onVisual = typeof opts.onVisual === 'function' ? opts.onVisual : null;
+    const emit = (ev) => onVisual && onVisual({ ...ev, source: 'negah', space: ev.space || 'screen' });
 
     if (!action) {
       return { ok: false, action, error: 'Missing action.' };
@@ -80,8 +82,18 @@ class NegahRunner {
         return { ok: false, action, error: 'launch_desktop requires app_path or command.' };
       }
 
-      case 'capture_screen':
-        return this.captureScreen();
+      case 'capture_screen': {
+        const shot = await this.captureScreen();
+        if (shot.ok && shot.screen_base64) {
+          emit({
+            type: 'screenshot',
+            image: String(shot.screen_base64).replace(/^data:image\/png;base64,/, ''),
+            space: 'screen',
+            label: 'desktop'
+          });
+        }
+        return shot;
+      }
 
       case 'wait': {
         const ms = Math.max(0, Number(params.ms || params.timeout_ms || 1000));
@@ -94,14 +106,31 @@ class NegahRunner {
         if (process.platform !== 'darwin') {
           return { ok: false, action, error: 'keyboard_type is currently supported on macOS only.' };
         }
+        emit({ type: 'type', text, space: 'screen' });
         const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const r = await this.runShell(`osascript -e 'tell application "System Events" to keystroke "${escaped}"'`);
         return { ok: r.ok, action, text, stdout: r.stdout, stderr: r.stderr, error: r.error };
       }
 
       case 'find_element':
-      case 'mouse_click':
         return { ok: false, action, error: `${action} runner is not configured yet for this environment.` };
+
+      case 'mouse_click': {
+        const x = Number(params.x);
+        const y = Number(params.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return { ok: false, action, error: 'mouse_click requires numeric params.x and params.y' };
+        }
+        emit({ type: 'move', x, y, space: 'screen' });
+        emit({ type: 'click', x, y, button: String(params.button || 'left'), space: 'screen' });
+        if (process.platform !== 'darwin') {
+          return { ok: false, action, error: 'mouse_click is currently supported on macOS only.' };
+        }
+        const r = await this.runShell(
+          `osascript -e 'tell application "System Events" to click at {${Math.round(x)}, ${Math.round(y)}}'`
+        );
+        return { ok: r.ok, action, x, y, stdout: r.stdout, stderr: r.stderr, error: r.error };
+      }
 
       case 'ask_human':
       case 'abort_task':
@@ -116,9 +145,10 @@ class NegahRunner {
     const list = Array.isArray(commands) ? commands : [];
     const results = [];
     let screenBase64 = null;
+    const onVisual = typeof opts.onVisual === 'function' ? opts.onVisual : null;
 
     for (const c of list) {
-      const r = await this.executeCommand(c);
+      const r = await this.executeCommand(c, { onVisual, cwd: opts.cwd });
       results.push(r);
       if (r.screen_base64) screenBase64 = r.screen_base64;
     }

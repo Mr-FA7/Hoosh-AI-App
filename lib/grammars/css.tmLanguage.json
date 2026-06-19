@@ -1,0 +1,8 @@
+{
+  "scopeName": "source.css",
+  "patterns": [
+    { "name": "comment.block.css", "begin": "/\\*", "end": "\\*/" },
+    { "name": "entity.name.tag.css", "match": "[.#]?[a-zA-Z][\\w-]*" },
+    { "name": "support.type.property-name.css", "match": "[a-z-]+(?=\\s*:)" }
+  ]
+}

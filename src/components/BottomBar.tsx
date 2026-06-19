@@ -7,9 +7,10 @@ interface BottomBarProps {
   errors?: number;
   warnings?: number;
   status?: string;
+  onProblemsClick?: () => void;
 }
 
-const BottomBar: React.FC<BottomBarProps> = ({ language = 'Javascript', errors = 0, warnings = 0, status = 'Ready' }) => {
+const BottomBar: React.FC<BottomBarProps> = ({ language = 'Javascript', errors = 0, warnings = 0, status = 'Ready', onProblemsClick }) => {
   const { t } = useI18n();
   return (
     <div className="bottom-bar" style={{
@@ -32,10 +33,10 @@ const BottomBar: React.FC<BottomBarProps> = ({ language = 'Javascript', errors =
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} onClick={onProblemsClick} role="button" tabIndex={0}>
                 <XCircle size={12} color="hsl(0 100% 60%)" /> {errors}
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} onClick={onProblemsClick} role="button" tabIndex={0}>
                 <AlertTriangle size={12} color="hsl(45 100% 50%)" /> {warnings}
             </span>
         </div>

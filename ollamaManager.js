@@ -55,11 +55,17 @@ class OllamaManager {
     }
 
     async getStatus() {
+        const hasLocalBin = !!(await fs.access(this.ollamaPath).catch(() => false));
+        let reachable = false;
+        try {
+            const r = await axios.get(`${this.ollamaApiBase}/api/tags`, { timeout: 3000 });
+            reachable = r.status === 200;
+        } catch (_) { /* offline */ }
         return {
             bin: this.ollamaPath,
             modelsDir: this.modelsDir,
             ollamaApiBase: this.ollamaApiBase,
-            isReady: !!(await fs.access(this.ollamaPath).catch(() => false))
+            isReady: hasLocalBin || reachable
         };
     }
 }

@@ -4,8 +4,32 @@ import axios from 'axios';
 import { API_BASE } from '../apiBase';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import AgentSettingsPanel from './settings/AgentSettingsPanel';
+import { BUILTIN_THEMES, applyExtensionTheme } from '../lib/themeApply';
 
-const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  currentTheme?: string;
+  onThemeChange?: (theme: string) => void;
+}
+
+const SettingSection = ({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; children: React.ReactNode }) => (
+  <div style={{ marginBottom: '32px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid hsl(var(--border) / 0.3)', paddingBottom: '8px' }}>
+      <Icon size={18} color="hsl(var(--accent))" strokeWidth={2.5} />
+      <h2 style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--text-primary))' }}>{title}</h2>
+    </div>
+    <div style={{ paddingLeft: '28px' }}>{children}</div>
+  </div>
+);
+
+const InfoRow = ({ label, value, active = false }: { label: string; value: React.ReactNode; active?: boolean }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '13px' }}>
+    <span style={{ opacity: 0.6 }}>{label}</span>
+    <span style={{ fontWeight: 600, color: active ? 'hsl(142 71% 45%)' : 'inherit' }}>{value}</span>
+  </div>
+);
+
+const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', onThemeChange }) => {
   const { t } = useI18n();
   const [hw, setHw] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +45,25 @@ const SettingsView: React.FC = () => {
   const [isPrivate, setIsPrivate] = useState(true);
   const [publishResult, setPublishResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [extThemes, setExtThemes] = useState<any[]>([]);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/v3/extensions/themes`).then((r) => {
+      setExtThemes(r.data?.themes || []);
+    }).catch(() => setExtThemes([]));
+  }, []);
+
+  const handleBuiltinTheme = (id: string) => {
+    const monaco = (window as any).monaco;
+    if (monaco?.editor?.setTheme) monaco.editor.setTheme(id);
+    localStorage.setItem('fa7_editor_theme', id);
+    onThemeChange?.(id);
+  };
+
+  const handleExtensionTheme = (theme: any) => {
+    if (!theme?.theme) return;
+    applyExtensionTheme(theme.theme, theme.uiTheme || 'vs-dark', onThemeChange);
+  };
 
   useEffect(() => {
     fetchHw();
@@ -164,23 +207,6 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  const SettingSection = ({ title, icon: Icon, children }: any) => (
-    <div style={{ marginBottom: '32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid hsl(var(--border) / 0.3)', paddingBottom: '8px' }}>
-        <Icon size={18} color="hsl(var(--accent))" strokeWidth={2.5} />
-        <h2 style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--text-primary))' }}>{title}</h2>
-      </div>
-      <div style={{ paddingLeft: '28px' }}>{children}</div>
-    </div>
-  );
-
-  const InfoRow = ({ label, value, active = false }: any) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '13px' }}>
-      <span style={{ opacity: 0.6 }}>{label}</span>
-      <span style={{ fontWeight: 600, color: active ? 'hsl(142 71% 45%)' : 'inherit' }}>{value}</span>
-    </div>
-  );
-
   const authLabel = useMemo(() => {
     if (!githubStatus) return t('settings.authUnknown');
     return githubStatus.authenticated
@@ -189,8 +215,46 @@ const SettingsView: React.FC = () => {
   }, [githubStatus, t]);
 
   return (
-    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', paddingBottom: '80px' }}>
       <h1 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '24px', background: 'linear-gradient(to right, #fff, #666)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t('settings.pageTitle')}</h1>
+
+      <SettingSection title={t('settings.appearance')} icon={Monitor}>
+        <p style={{ fontSize: '12px', color: 'hsl(var(--text-secondary))', marginBottom: '12px' }}>{t('settings.editorThemeHint')}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+          {BUILTIN_THEMES.map((th) => (
+            <button
+              key={th.id}
+              type="button"
+              onClick={() => handleBuiltinTheme(th.id)}
+              style={{
+                padding: '8px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer',
+                border: currentTheme === th.id ? '1px solid hsl(var(--accent))' : '1px solid hsl(var(--border))',
+                background: currentTheme === th.id ? 'hsl(var(--accent) / 0.15)' : 'transparent',
+                color: 'hsl(var(--text-primary))'
+              }}
+            >
+              {th.label}
+            </button>
+          ))}
+        </div>
+        {extThemes.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {extThemes.map((th) => (
+              <button
+                key={`${th.extension}-${th.id}`}
+                type="button"
+                onClick={() => handleExtensionTheme(th)}
+                style={{
+                  padding: '8px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer',
+                  border: '1px solid hsl(var(--border))', background: 'transparent', color: 'hsl(var(--text-primary))'
+                }}
+              >
+                {th.label || th.id}
+              </button>
+            ))}
+          </div>
+        )}
+      </SettingSection>
 
       <div
         style={{
@@ -384,6 +448,10 @@ const SettingsView: React.FC = () => {
           <input type="checkbox" checked readOnly style={{ accentColor: 'hsl(var(--accent))' }} />
           <span style={{ fontSize: '13px', opacity: 0.7 }}>{t('settings.notifyAgents')}</span>
         </div>
+      </SettingSection>
+
+      <SettingSection title={t('agentSettings.title')} icon={Shield}>
+        <AgentSettingsPanel embedded />
       </SettingSection>
     </div>
   );

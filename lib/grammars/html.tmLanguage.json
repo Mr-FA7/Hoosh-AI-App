@@ -1,0 +1,7 @@
+{
+  "scopeName": "text.html.basic",
+  "patterns": [
+    { "name": "comment.block.html", "begin": "<!--", "end": "-->" },
+    { "name": "meta.tag.html", "match": "</?[a-zA-Z][^>]*>" }
+  ]
+}

@@ -25,6 +25,10 @@ import { useI18n } from '../i18n/LocaleContext';
 import BrowserView from './BrowserView';
 import TerminalView from './TerminalView';
 import DownloadManagerView from './DownloadManagerView';
+import InlineChat from './InlineChat';
+import DiffZoneOverlay, { type DiffZoneProposal } from './DiffZoneOverlay';
+import { wireEditorTextMate, registerExtensionLanguages } from '../lib/textMateSetup';
+import { publishProblems } from '../lib/problemsContextSync';
 
 interface EditorProps {
   content: string;
@@ -46,13 +50,17 @@ interface EditorProps {
   onOpenBrowserWorkspace?: () => void;
   onOpenDownloadWorkspace?: () => void;
   onOpenTerminalWorkspace?: () => void;
+  /** Live mission diff overlay when the active file matches */
+  missionDiffZone?: DiffZoneProposal | null;
+  onClearMissionDiffZone?: () => void;
 }
 
 const Editor: React.FC<EditorProps> = ({ 
   content, fileName, onSave, isSaving, theme = 'vs-dark',
   workspaceTabs = [], activeTabIndex = -1, onWorkspaceTabSelect, onWorkspaceTabClose,
   onOpenFile, onFilesChanged, onOpenQuickStartTab,
-  onOpenBrowserWorkspace, onOpenDownloadWorkspace, onOpenTerminalWorkspace
+  onOpenBrowserWorkspace, onOpenDownloadWorkspace, onOpenTerminalWorkspace,
+  missionDiffZone, onClearMissionDiffZone
 }) => {
   const { t } = useI18n();
   const [localContent, setLocalContent] = React.useState(content);
@@ -64,10 +72,89 @@ const Editor: React.FC<EditorProps> = ({
   const [folderBrowseBusy, setFolderBrowseBusy] = React.useState(false);
   const [pickedSource, setPickedSource] = React.useState<string | null>(null);
   const [importDestRel, setImportDestRel] = React.useState('');
+  const [inlineOpen, setInlineOpen] = React.useState(false);
+  const [inlineSelection, setInlineSelection] = React.useState('');
+  const [diffZone, setDiffZone] = React.useState<DiffZoneProposal | null>(null);
+  const [lintNotice, setLintNotice] = React.useState<string | null>(null);
+  const editorRef = React.useRef<any>(null);
+  const nesTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nesDecorationsRef = React.useRef<string[]>([]);
+  const diffDecorationsRef = React.useRef<string[]>([]);
+
+  const buildInlineDiffDecorations = React.useCallback((monaco: any, original: string, proposed: string) => {
+    if (!proposed) return [];
+    const origLines = original.split('\n');
+    const propLines = proposed.split('\n');
+    const max = Math.max(origLines.length, propLines.length);
+    const decorations: Array<{ range: any; options: Record<string, unknown> }> = [];
+    for (let i = 0; i < max; i++) {
+      const line = i + 1;
+      const o = origLines[i];
+      const p = propLines[i];
+      if (o === p) continue;
+      if (p === undefined && o !== undefined) {
+        decorations.push({
+          range: new monaco.Range(line, 1, line, Math.max(1, o.length + 1)),
+          options: { isWholeLine: true, className: 'hoosh-diff-del-line' }
+        });
+      } else if (o === undefined && p !== undefined) {
+        decorations.push({
+          range: new monaco.Range(line, 1, line, 1),
+          options: { isWholeLine: true, className: 'hoosh-diff-add-line' }
+        });
+      } else {
+        decorations.push({
+          range: new monaco.Range(line, 1, line, Math.max(1, (o?.length || 0) + 1)),
+          options: { isWholeLine: true, className: 'hoosh-diff-chg-line' }
+        });
+      }
+    }
+    return decorations;
+  }, []);
 
   React.useEffect(() => {
     setLocalContent(content);
   }, [content]);
+
+  React.useEffect(() => {
+    if (missionDiffZone && missionDiffZone.fileName === fileName) {
+      setDiffZone(missionDiffZone);
+    }
+  }, [missionDiffZone, fileName]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadExtensions = async () => {
+      try {
+        const [langRes, themeRes] = await Promise.all([
+          axios.get(`${API_BASE}/v3/extensions/languages`),
+          axios.get(`${API_BASE}/v3/extensions/themes`)
+        ]);
+        if (cancelled) return;
+        const monaco = (window as unknown as { monaco?: any }).monaco;
+        if (!monaco) return;
+        for (const lang of langRes.data?.languages || []) {
+          const ext = (lang.extensions || [])[0];
+          if (!ext || !lang.id) continue;
+          try { monaco.languages.register({ id: lang.id }); } catch { /* already */ }
+        }
+        for (const t of themeRes.data?.themes || []) {
+          const themeId = `ext-${String(t.id || t.label || 'theme').replace(/\s+/g, '-')}`;
+          const base = t.uiTheme === 'vs' ? 'vs' : t.uiTheme === 'hc-black' ? 'hc-black' : 'vs-dark';
+          try {
+            monaco.editor.defineTheme(themeId, {
+              base,
+              inherit: true,
+              rules: [],
+              colors: t.theme?.colors || {}
+            });
+          } catch { /* ignore bad theme */ }
+        }
+      } catch { /* extensions optional */ }
+    };
+    void loadExtensions();
+    return () => { cancelled = true; };
+  }, [fileName]);
 
   const getLanguage = (file: string) => {
     const ext = file.split('.').pop();
@@ -88,6 +175,19 @@ const Editor: React.FC<EditorProps> = ({
   const activeWorkspaceTab = activeTabIndex >= 0 ? workspaceTabs[activeTabIndex] : undefined;
   const fileTabPath =
     activeWorkspaceTab?.kind === 'file' ? activeWorkspaceTab.path : fileName;
+
+  React.useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = (window as unknown as { monaco?: any }).monaco;
+    if (!editor || !monaco) return;
+    if (!diffZone || diffZone.fileName !== fileTabPath) {
+      diffDecorationsRef.current = editor.deltaDecorations(diffDecorationsRef.current, []);
+      return;
+    }
+    const decs = buildInlineDiffDecorations(monaco, diffZone.original, diffZone.proposed);
+    diffDecorationsRef.current = editor.deltaDecorations(diffDecorationsRef.current, decs);
+  }, [diffZone, fileTabPath, buildInlineDiffDecorations]);
+
   const activeAiStatus =
     activeWorkspaceTab &&
     activeWorkspaceTab.kind !== 'file' &&
@@ -95,46 +195,304 @@ const Editor: React.FC<EditorProps> = ({
       ? activeWorkspaceTab.aiStatus
       : undefined;
 
-  const handleEditorMount = (editor: any, monaco: any) => {
-    monaco.languages.registerCompletionItemProvider('javascript', {
+  const registerLspCompletion = (monaco: any, languageId: string) => {
+    if (languageId !== 'typescript' && languageId !== 'javascript') return;
+    monaco.languages.registerCompletionItemProvider(languageId, {
+      triggerCharacters: ['.', '/', '"', "'", '`'],
       provideCompletionItems: async (model: any, position: any) => {
-        const textUntilPosition = model.getValueInRange({
-          startLineNumber: 1,
-          startColumn: 1,
-          endLineNumber: position.lineNumber,
-          endColumn: position.column
-        });
-        if (textUntilPosition.length < 10) return { suggestions: [] };
         try {
-          const res = await axios.post(`${API_BASE}/ai/complete`, {
-            prefix: textUntilPosition.slice(-500),
-            suffix: model.getValue().slice(model.getOffsetAt(position), 500),
-            fileName: fileTabPath
+          const res = await axios.post(`${API_BASE}/v3/lsp/completion`, {
+            filePath: fileTabPath,
+            line: position.lineNumber,
+            character: position.column - 1,
+            content: model.getValue()
           });
-          const suggestion = res.data.suggestion;
-          return {
-            suggestions: [{
-              label: 'Hoosh',
-              kind: monaco.languages.CompletionItemKind.Snippet,
-              insertText: suggestion,
-              range: {
-                startLineNumber: position.lineNumber,
-                startColumn: position.column,
-                endLineNumber: position.lineNumber,
-                endColumn: position.column
-              },
-              detail: t('editor.aiGenerated')
-            }]
+          const items = res.data?.items || [];
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn
           };
-        } catch (err) {
+          return {
+            suggestions: items.map((item: any, idx: number) => ({
+              label: item.label,
+              kind: monaco.languages.CompletionItemKind.Function,
+              insertText: item.insertText || item.label,
+              detail: item.detail || 'LSP',
+              range,
+              sortText: `1_${idx}`
+            }))
+          };
+        } catch {
           return { suggestions: [] };
         }
       }
+    });
+  };
+
+  const registerLspHover = (monaco: any, languageId: string) => {
+    monaco.languages.registerHoverProvider(languageId, {
+      provideHover: async (model: any, position: any) => {
+        try {
+          const res = await axios.post(`${API_BASE}/v3/lsp/hover`, {
+            filePath: fileTabPath,
+            line: position.lineNumber,
+            character: position.column - 1,
+            content: model.getValue()
+          });
+          const hover = res.data?.hover;
+          if (!hover?.contents) return null;
+          const contents = Array.isArray(hover.contents)
+            ? hover.contents.map((c: any) => ({ value: typeof c === 'string' ? c : c.value || '' }))
+            : [{ value: String(hover.contents) }];
+          return { range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1), contents };
+        } catch {
+          return null;
+        }
+      }
+    });
+  };
+
+  const registerLspDefinition = (monaco: any, languageId: string) => {
+    monaco.languages.registerDefinitionProvider(languageId, {
+      provideDefinition: async (model: any, position: any) => {
+        try {
+          const res = await axios.post(`${API_BASE}/v3/lsp/definition`, {
+            filePath: fileTabPath,
+            line: position.lineNumber,
+            character: position.column - 1,
+            content: model.getValue()
+          });
+          const def = res.data?.definition;
+          if (!def?.uri) return null;
+          const targetPath = String(def.uri).replace(/^file:\/\//, '');
+          return {
+            uri: monaco.Uri.file(targetPath),
+            range: new monaco.Range(
+              def.range?.start?.line || 1,
+              (def.range?.start?.character || 0) + 1,
+              def.range?.end?.line || 1,
+              (def.range?.end?.character || 0) + 1
+            )
+          };
+        } catch {
+          return null;
+        }
+      }
+    });
+  };
+
+  const registerInlineNes = (monaco: any, languageId: string) => {
+    if (typeof monaco.languages.registerInlineCompletionsProvider !== 'function') return;
+    monaco.languages.registerInlineCompletionsProvider(languageId, {
+      provideInlineCompletions: async (model: any, position: any) => {
+        const offset = model.getOffsetAt(position);
+        const fullText = model.getValue();
+        const prefix = fullText.slice(Math.max(0, offset - 600), offset);
+        const suffix = fullText.slice(offset, offset + 200);
+        if (prefix.trim().length < 12) return { items: [] };
+        try {
+          const res = await axios.post(`${API_BASE}/ai/complete`, {
+            prefix, suffix, fileName: fileTabPath, nes: true
+          });
+          const suggestion = String(res.data?.suggestion || '').trim();
+          if (!suggestion) return { items: [] };
+          return {
+            items: [{
+              insertText: suggestion,
+              range: new monaco.Range(
+                position.lineNumber, position.column,
+                position.lineNumber, position.column
+              )
+            }]
+          };
+        } catch {
+          return { items: [] };
+        }
+      },
+      freeInlineCompletions: () => {}
+    });
+  };
+
+  const scheduleNextEditSuggestion = (editor: any, monaco: any) => {
+    if (nesTimerRef.current) clearTimeout(nesTimerRef.current);
+    nesTimerRef.current = setTimeout(async () => {
+      const model = editor.getModel();
+      const pos = editor.getPosition();
+      if (!model || !pos) return;
+      const offset = model.getOffsetAt(pos);
+      const fullText = model.getValue();
+      const prefix = fullText.slice(Math.max(0, offset - 600), offset);
+      const suffix = fullText.slice(offset, offset + 200);
+      if (prefix.trim().length < 12) return;
+      try {
+        const res = await axios.post(`${API_BASE}/ai/complete`, {
+          prefix,
+          suffix,
+          fileName: fileTabPath,
+          nes: true
+        });
+        const suggestion = String(res.data?.suggestion || '').trim();
+        if (!suggestion) return;
+        const line = model.getLineContent(pos.lineNumber);
+        const after = { lineNumber: pos.lineNumber, column: line.length + 1 };
+        nesDecorationsRef.current = editor.deltaDecorations(nesDecorationsRef.current, [{
+          range: new monaco.Range(pos.lineNumber, pos.column, after.lineNumber, after.column),
+          options: {
+            after: { content: ` ${suggestion}`, inlineClassName: 'hoosh-nes-hint' },
+            hoverMessage: { value: t('editor.nextEditSuggestion') }
+          }
+        }]);
+      } catch { /* ignore */ }
+    }, 1400);
+  };
+
+  const registerAiCompletion = (monaco: any, languageId: string) => {
+    monaco.languages.registerCompletionItemProvider(languageId, {
+      triggerCharacters: ['.', '(', ' ', '\n'],
+      provideCompletionItems: async (model: any, position: any) => {
+        const offset = model.getOffsetAt(position);
+        const fullText = model.getValue();
+        const prefix = fullText.slice(Math.max(0, offset - 800), offset);
+        const suffix = fullText.slice(offset, offset + 400);
+        if (prefix.trim().length < 8) return { suggestions: [] };
+        try {
+          const res = await axios.post(`${API_BASE}/ai/complete`, {
+            prefix,
+            suffix,
+            fileName: fileTabPath,
+            fuse: true
+          });
+          const suggestion = String(res.data?.suggestion || '').trim();
+          const fused = (res.data?.fused as Array<{ label?: string; insertText?: string; detail?: string; sources?: string[] }>) || [];
+          const candidates = fused.length > 0
+            ? fused.slice(0, 8)
+            : (suggestion ? [{ label: 'Hoosh AI', insertText: suggestion, detail: 'AI', sources: ['ai'] }] : []);
+          if (candidates.length === 0) return { suggestions: [] };
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn
+          };
+          return {
+            suggestions: candidates.map((item, idx) => {
+              const insertText = String(item.insertText || item.label || '').trim();
+              const source = (item.sources || [])[0] || 'ai';
+              const kind = source === 'lsp'
+                ? monaco.languages.CompletionItemKind.Function
+                : source === 'fts'
+                  ? monaco.languages.CompletionItemKind.File
+                  : monaco.languages.CompletionItemKind.Snippet;
+              return {
+                label: item.label || insertText.slice(0, 40),
+                kind,
+                insertText,
+                range,
+                detail: item.detail || source.toUpperCase(),
+                sortText: `0_${idx}`
+              };
+            })
+          };
+        } catch {
+          return { suggestions: [] };
+        }
+      }
+    });
+  };
+
+  const handleEditorMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+    void registerExtensionLanguages(monaco);
+    void wireEditorTextMate(monaco, editor);
+    for (const lang of ['javascript', 'typescript', 'python', 'rust', 'go']) {
+      registerAiCompletion(monaco, lang);
+      registerInlineNes(monaco, lang);
+      registerLspCompletion(monaco, lang);
+      registerLspHover(monaco, lang);
+      registerLspDefinition(monaco, lang);
+    }
+
+    const pushProblems = () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const uri = model.uri?.toString?.() || fileName;
+      const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+      const normalized = markers.map((m: any) => ({
+        resource: fileName || uri.replace(/^file:\/\//, ''),
+        message: m.message,
+        severity: m.severity,
+        startLineNumber: m.startLineNumber,
+        startColumn: m.startColumn,
+        endLineNumber: m.endLineNumber,
+        endColumn: m.endColumn,
+        source: m.source || 'monaco'
+      }));
+      publishProblems(normalized, fileName);
+    };
+
+    pushProblems();
+    const markerSub = monaco.editor.onDidChangeMarkers((uris: any[]) => {
+      const model = editor.getModel();
+      if (!model) return;
+      if (!uris?.length || uris.some((u: any) => String(u?.toString?.() || u) === String(model.uri?.toString?.() || model.uri))) {
+        pushProblems();
+      }
+    });
+
+    editor.onDidChangeModelContent(() => {
+      nesDecorationsRef.current = editor.deltaDecorations(nesDecorationsRef.current, []);
+      scheduleNextEditSuggestion(editor, monaco);
+    });
+
+    try {
+      monaco.languages.typescript?.typescriptDefaults?.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        noEmit: true,
+        esModuleInterop: true,
+        jsx: monaco.languages.typescript.JsxEmit.React,
+        allowJs: true
+      });
+      monaco.languages.typescript?.javascriptDefaults?.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        noEmit: true,
+        allowJs: true
+      });
+    } catch { /* monaco TS optional */ }
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+      const sel = editor.getModel()?.getValueInRange(editor.getSelection()) || '';
+      setInlineSelection(sel || editor.getModel()?.getLineContent(editor.getPosition()?.lineNumber || 1) || '');
+      setInlineOpen(true);
     });
 
     if (theme === 'custom-ext-theme') {
         monaco.editor.setTheme('custom-ext-theme');
     }
+
+    const gotoHandler = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail || {};
+      const line = Number(detail.line || 1);
+      const column = Number(detail.column || 1);
+      editor.revealLineInCenter(line);
+      editor.setPosition({ lineNumber: line, column });
+      editor.focus();
+    };
+    window.addEventListener('fa7-goto-line', gotoHandler as EventListener);
+
+    editor.onDidDispose(() => {
+      markerSub.dispose();
+      window.removeEventListener('fa7-goto-line', gotoHandler as EventListener);
+    });
   };
 
   const sanitizeRel = (s: string) => String(s || '').trim().replace(/^\/+/, '');
@@ -775,7 +1133,7 @@ const Editor: React.FC<EditorProps> = ({
           )}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <div className="glass" style={{ height: '100%', overflow: 'hidden', padding: '4px', flex: 1, minHeight: 0 }}>
             <MonacoEditor
               key={fileTabPath}
@@ -837,6 +1195,77 @@ const Editor: React.FC<EditorProps> = ({
         <div style={{ width: '100%', maxWidth: '440px' }}>{quickStartPanel}</div>
       </div>
       ) : null}
+      <InlineChat
+        open={inlineOpen}
+        fileName={fileTabPath}
+        selectedText={inlineSelection}
+        onClose={() => setInlineOpen(false)}
+        onApply={(text) => {
+          setDiffZone({ fileName: fileTabPath, original: localContent, proposed: text });
+          setInlineOpen(false);
+        }}
+      />
+      <DiffZoneOverlay
+        proposal={diffZone}
+        onApply={async (text) => {
+          const editor = editorRef.current;
+          const model = editor?.getModel?.();
+          if (editor && model && diffZone) {
+            const monaco = (window as any).monaco;
+            if (monaco?.Range) {
+              const { buildInlineEdits } = await import('../lib/inlineDiffApply');
+              const edits = buildInlineEdits(monaco, diffZone.original, text);
+              if (edits.length) {
+                editor.executeEdits('hoosh-diffzone-inline', edits);
+              } else {
+                editor.executeEdits('hoosh-diffzone', [{
+                  range: model.getFullModelRange(),
+                  text,
+                  forceMoveMarkers: true
+                }]);
+              }
+            } else {
+              editor.executeEdits('hoosh-diffzone', [{
+                range: model.getFullModelRange(),
+                text,
+                forceMoveMarkers: true
+              }]);
+            }
+          }
+          setLocalContent(text);
+          setLintNotice(null);
+          try {
+            const r = await axios.post(`${API_BASE}/v3/context/apply-file`, {
+              path: fileTabPath,
+              content: text,
+              runLint: true
+            });
+            if (r.data?.lint?.failed) {
+              setLintNotice(String(r.data.lint.feedback || t('editor.lintFailed')).slice(0, 2000));
+            }
+          } catch {
+            onSave(text);
+          }
+          axios.post(`${API_BASE}/v3/context/track-edit`, { path: fileTabPath }).catch(() => {});
+          setDiffZone(null);
+          onClearMissionDiffZone?.();
+        }}
+        onReject={() => {
+          setDiffZone(null);
+          setLintNotice(null);
+          onClearMissionDiffZone?.();
+        }}
+      />
+      {lintNotice && (
+        <div style={{
+          position: 'absolute', bottom: diffZone ? '44%' : 8, left: 8, right: 8, zIndex: 55,
+          background: 'rgba(127,29,29,0.92)', border: '1px solid #ef4444', borderRadius: 8,
+          padding: '8px 12px', fontSize: 11, color: '#fecaca', maxHeight: 120, overflow: 'auto'
+        }}>
+          <strong>{t('editor.lintFailed')}</strong>
+          <pre style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{lintNotice}</pre>
+        </div>
+      )}
     </div>
   );
 };

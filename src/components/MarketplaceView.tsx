@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Download, Package, Star, Loader2, CheckCircle } from 'lucide-react';
+import { Search, Download, Package, Star, Loader2, CheckCircle, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE as API_ROOT } from '../apiBase';
 import { useI18n } from '../i18n/LocaleContext';
+import { applyExtensionTheme } from '../lib/themeApply';
+import SkillsMarketplace from './SkillsMarketplace';
 
 const MARKETPLACE_API = `${API_ROOT}/v3/marketplace`;
 
@@ -12,6 +14,7 @@ interface MarketplaceViewProps {
 
 const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => {
   const { t } = useI18n();
+  const [marketMode, setMarketMode] = useState<'extensions' | 'skills'>('skills');
   const [query, setQuery] = useState('');
   const [extensions, setExtensions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,50 +95,8 @@ const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => 
         }
       });
       const themeData = res.data;
-      
-      if ((window as any).monaco) {
-          const m = (window as any).monaco;
-          m.editor.defineTheme('custom-ext-theme', {
-            base: theme.uiTheme === 'vs-dark' ? 'vs-dark' : 'vs',
-            inherit: true,
-            rules: themeData.tokenColors ? themeData.tokenColors.map((tc: any) => ({
-                token: tc.scope ? (Array.isArray(tc.scope) ? tc.scope[0] : tc.scope) : '',
-                foreground: tc.settings.foreground,
-                fontStyle: tc.settings.fontStyle
-            })) : [],
-            colors: themeData.colors || {}
-          });
-          m.editor.setTheme('custom-ext-theme');
-      }
-
-      if (themeData.colors) {
-          const colors = themeData.colors;
-          let styleTag = document.getElementById('fa7-dynamic-theme');
-          if (!styleTag) {
-              styleTag = document.createElement('style');
-              styleTag.id = 'fa7-dynamic-theme';
-              document.head.appendChild(styleTag);
-          }
-          
-          styleTag.innerHTML = `
-            :root {
-              ${colors['editor.background'] ? `--bg-main-override: ${colors['editor.background']};` : ''}
-              ${colors['sideBar.background'] ? `--bg-sidebar-override: ${colors['sideBar.background']};` : ''}
-              ${colors['activityBar.background'] ? `--bg-panel-override: ${colors['activityBar.background']};` : ''}
-              ${colors['button.background'] ? `--accent-override: ${colors['button.background']};` : ''}
-              ${colors['editor.foreground'] ? `--text-primary-override: ${colors['editor.foreground']};` : ''}
-              ${colors['editorGroup.border'] ? `--border-override: ${colors['editorGroup.border']};` : ''}
-            }
-            body, .workspace-container, .editor-section { background-color: var(--bg-main-override, hsl(var(--bg-main))) !important; }
-            .sidebar, .file-explorer { background-color: var(--bg-sidebar-override, hsl(var(--bg-sidebar))) !important; }
-            .ai-panel { background-color: var(--bg-panel-override, hsl(var(--bg-panel))) !important; }
-            .btn-primary, [style*="background: hsl(var(--accent))"] { background-color: var(--accent-override, hsl(var(--accent))) !important; }
-            body { color: var(--text-primary-override, hsl(var(--text-primary))) !important; }
-          `;
-
-          if (onThemeApplied) onThemeApplied('custom-ext-theme');
-          alert(`Theme "${theme.label}" applied!`);
-      }
+      applyExtensionTheme(themeData, theme.uiTheme || 'vs-dark', onThemeApplied);
+      alert(t('marketplace.themeApplied').replace('{name}', theme.label || theme.id || ''));
     } catch (e) {
       console.error('Failed to apply theme', e);
       alert(t('marketplace.alertApplyThemeFailed'));
@@ -150,29 +111,46 @@ const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => 
         </div>
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>{t('marketplace.title')}</h2>
-          <p style={{ fontSize: '13px', color: 'hsl(var(--text-secondary))', margin: 0 }}>{t('marketplace.poweredBy')}</p>
+          <p style={{ fontSize: '13px', color: 'hsl(var(--text-secondary))', margin: 0 }}>
+            {marketMode === 'skills' ? 'Skills — install expertise, grant capabilities, run in a sandbox' : t('marketplace.poweredBy')}
+          </p>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px' }}>
-             <button 
-               onClick={() => setViewTab('search')}
-               style={{ 
-                 padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                 background: viewTab === 'search' ? 'hsl(var(--accent))' : 'transparent',
-                 color: viewTab === 'search' ? 'black' : 'white'
-               }}
-             >{t('marketplace.tabExplore')}</button>
-             <button 
-               onClick={() => setViewTab('installed')}
-               style={{ 
-                 padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                 background: viewTab === 'installed' ? 'hsl(var(--accent))' : 'transparent',
-                 color: viewTab === 'installed' ? 'black' : 'white'
-               }}
-             >{t('marketplace.tabInstalled')}</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Extensions vs Skills */}
+          <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px' }}>
+            <button onClick={() => setMarketMode('skills')} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', background: marketMode === 'skills' ? 'hsl(var(--accent))' : 'transparent', color: marketMode === 'skills' ? 'black' : 'white' }}>
+              <Sparkles size={14} /> Skills
+            </button>
+            <button onClick={() => setMarketMode('extensions')} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', background: marketMode === 'extensions' ? 'hsl(var(--accent))' : 'transparent', color: marketMode === 'extensions' ? 'black' : 'white' }}>
+              <Package size={14} /> Extensions
+            </button>
+          </div>
+          {marketMode === 'extensions' && (
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px' }}>
+               <button
+                 onClick={() => setViewTab('search')}
+                 style={{
+                   padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                   background: viewTab === 'search' ? 'hsl(var(--accent))' : 'transparent',
+                   color: viewTab === 'search' ? 'black' : 'white'
+                 }}
+               >{t('marketplace.tabExplore')}</button>
+               <button
+                 onClick={() => setViewTab('installed')}
+                 style={{
+                   padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                   background: viewTab === 'installed' ? 'hsl(var(--accent))' : 'transparent',
+                   color: viewTab === 'installed' ? 'black' : 'white'
+                 }}
+               >{t('marketplace.tabInstalled')}</button>
+            </div>
+          )}
         </div>
       </div>
 
-      {viewTab === 'search' && (
+      {marketMode === 'skills' && <SkillsMarketplace />}
+
+      {marketMode === 'extensions' && viewTab === 'search' && (
         <form 
           onSubmit={(e) => { e.preventDefault(); handleSearch(query); }}
           style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}
@@ -196,6 +174,7 @@ const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => 
         </form>
       )}
 
+      {marketMode === 'extensions' && (
       <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', paddingBottom: '30px' }}>
         {(viewTab === 'search' ? extensions : installed).map((ext) => (
           <div 
@@ -263,6 +242,7 @@ const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => 
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

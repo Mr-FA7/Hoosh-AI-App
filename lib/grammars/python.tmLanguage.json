@@ -1,0 +1,27 @@
+{
+  "scopeName": "source.python",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [{ "name": "comment.line.number-sign.python", "match": "#.*$" }]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double.python", "begin": "\"", "end": "\"" },
+        { "name": "string.quoted.single.python", "begin": "'", "end": "'" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.python",
+          "match": "\\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|raise|with|yield|lambda|pass|break|continue)\\b"
+        }
+      ]
+    }
+  }
+}

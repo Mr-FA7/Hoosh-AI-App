@@ -25,11 +25,71 @@ const { downloadOllamaRuntimeIntoUserData } = require('./companionOllamaRuntimeD
 const { loadFa7Plugins } = require('./companionFa7Plugins');
 const { KavoshBrowserKernel } = require('./kavoshBrowserKernel');
 const { GiraBdtmKernel } = require('./giraBdtmKernel');
+const { McpManager } = require('./lib/mcpManager');
+const {
+  loadRules,
+  loadSkills,
+  selectRulesForContext,
+  matchSkillsForQuery,
+  buildRulesPrompt,
+  buildSkillsPrompt,
+  ensureDefaults
+} = require('./lib/rulesSkills');
+const { CheckpointManager } = require('./lib/checkpointManager');
+const { LlmGateway } = require('./lib/llmGateway');
+const { ToolApprovalManager } = require('./lib/toolApproval');
+const { SkillManager } = require('./lib/skillManager');
+const { evaluateSkill } = require('./lib/skillEval');
+const { runSkillCode } = require('./lib/skillSandbox');
+const auditLog = require('./lib/auditLog');
+const { compactMessages, compactWithLlm } = require('./lib/contextCompaction');
+const gitWorkspace = require('./lib/gitWorkspace');
+const { VectorIndex } = require('./lib/vectorIndex');
+const { LanceVectorIndex } = require('./lib/lanceVectorIndex');
+const { SandboxRunner } = require('./lib/sandboxRunner');
+const { LspBridge } = require('./lib/lspBridge');
+const { AcpAdapter } = require('./lib/acpAdapter');
+const { listExtensionLanguages, listExtensionGrammars, listExtensionThemes } = require('./lib/extensionBridge');
+const { SqliteFtsIndex, sqliteFtsAvailable } = require('./lib/sqliteFtsIndex');
+const { SubagentRunner } = require('./lib/subagentRunner');
+const { FtsIndex } = require('./lib/ftsIndex');
+const { tryFastPath } = require('./lib/fastPath');
+const { fuseCandidates } = require('./lib/completionFusion');
+const { AgentSessions } = require('./lib/agentSessions');
+const { AgentAutomation } = require('./lib/agentAutomation');
+const { HitlGraph } = require('./lib/hitlGraph');
+const { StreamRegistry } = require('./lib/streamRegistry');
+const { GatherMode } = require('./lib/gatherMode');
+const { mountAgentServer } = require('./lib/agentServer');
+const { listCatalog, applyCatalogToConfig } = require('./lib/mcpCatalog');
+const { getEngineMatrix, suggestRoleRouting } = require('./lib/engineMatrix');
+const { runPostEditChecks } = require('./lib/lintRunner');
+const { normalizeAgentResponse } = require('./lib/toolNormalizer');
+const { formatTerminalContext } = require('./lib/terminalContext');
+const problemsContext = require('./lib/problemsContext');
+const docsContext = require('./lib/docsContext');
+const { mountFccProxyRoutes } = require('./lib/fccProxy');
+const { getBuiltinGrammar } = require('./lib/builtinGrammars');
+const { convertVscodeTheme } = require('./lib/themeConverter');
+const { runPlaywrightInSandbox } = require('./lib/sandboxPlaywright');
+const { listExtensionCommands, executeCommand, listExtensionActivations, listExtensionKeybindings, listContributions, registerWebview, getWebview, filterKeybindings } = require('./lib/extensionHost');
+const { WorkspaceManager } = require('./lib/workspaceManager');
+const { resolveListRequest, resolveReadPath } = require('./lib/workspacePaths');
+const { activateAll, sandboxStatus, clearSandbox } = require('./lib/extensionSandbox');
+const { McpGateway } = require('./lib/mcpGateway');
+const { collectTools, toOpenAIFunctions, toAnthropicTools, invokeTool } = require('./lib/lmToolProtocol');
+const { CompletionServer } = require('./lib/completionServer');
+const { runBrowserAgent } = require('./lib/browserAgentLoop');
+const { emitAgentVisualAction, subscribeAgentVisualActions, getAgentVisualHistory } = require('./lib/agentActionHub');
+const { getCatalog, applyCatalogToProviders, healthCheckAll } = require('./lib/litellmRouter');
 
 const os = require('os');
-const PORT = 3001;
+const PORT = Number(process.env.FA7_PORT) || 3001;
 const PTY_WS_PORT = Number(process.env.FA7_PTY_PORT) || 3002;
 const SYSTEM_DIR = path.join(os.homedir(), '.aivon-os');
+const SANDBOX_CONFIG_PATH = path.join(SYSTEM_DIR, 'sandbox.json');
+const INDEX_CONFIG_PATH = path.join(SYSTEM_DIR, 'indexing.json');
+  const AGENT_CONFIG_PATH = path.join(SYSTEM_DIR, 'agent.json');
 const CONFIG_PATH = path.join(SYSTEM_DIR, 'fa7_config.json');
 const RECENT_PATH = path.join(SYSTEM_DIR, 'recent-projects.json');
 
@@ -81,6 +141,25 @@ function getServiceRoot() {
 }
 
 let currentProjectRoot = loadInitialProjectRoot();
+let workspaceManager = null;
+/** Set from main() once AgentKernel exists — avoids TDZ on module-level getWorkspaceManager */
+let agentKernelRef = null;
+let indexerRef = null;
+
+async function getWorkspaceManager() {
+  if (!currentProjectRoot) {
+    workspaceManager = null;
+    agentKernelRef?.setWorkspaceManager?.(null);
+    if (indexerRef?.setWorkspaceManager) indexerRef.setWorkspaceManager(null);
+    return null;
+  }
+  if (!workspaceManager || workspaceManager.primaryRoot !== path.resolve(currentProjectRoot)) {
+    workspaceManager = await WorkspaceManager.load(currentProjectRoot);
+    agentKernelRef?.setWorkspaceManager?.(workspaceManager);
+    indexerRef?.setWorkspaceManager?.(workspaceManager);
+  }
+  return workspaceManager;
+}
 let notebookPath = currentProjectRoot
   ? path.join(currentProjectRoot, '.fa7', 'notebook.md')
   : null;
@@ -144,7 +223,9 @@ async function main() {
 
   const bootServiceRoot = getServiceRoot();
   let indexer = new Indexer(bootServiceRoot);
+  indexerRef = indexer;
   let kernel = new AgentKernel(bootServiceRoot, ollamaHttp(), indexer);
+  agentKernelRef = kernel;
   let engine = new OllamaManager(bootServiceRoot, ollamaHttp());
   const negah = new NegahAgent(ollamaHttp());
   const negahRunner = new NegahRunner(getPtyCwd());
@@ -156,6 +237,143 @@ async function main() {
   const resManager = new ResourceManager();
   const kavoshKernel = new KavoshBrowserKernel();
   const giraKernel = new GiraBdtmKernel();
+  const mcpManager = new McpManager();
+  const mcpGateway = new McpGateway(mcpManager);
+  const llmGateway = new LlmGateway(() => ollamaHttp());
+  mountFccProxyRoutes(app, () => llmGateway);
+  kernel.setLlmGateway(llmGateway);
+  const toolApproval = new ToolApprovalManager();
+  const skillManager = new SkillManager({ projectRoot: currentProjectRoot });
+
+  // Build active Skills' system-prompt block and push it into the kernel (S1).
+  async function refreshSkillPrompts() {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const active = await skillManager.activeSkills();
+      const blocks = [];
+      for (const s of active) {
+        let prompt = '';
+        if (s.manifest.systemPrompt) {
+          try { prompt = await fs.readFile(path.join(s.dir, s.manifest.systemPrompt), 'utf8'); } catch { /* ignore */ }
+        }
+        if (prompt.trim()) blocks.push(`### Skill: ${s.manifest.name}\n${prompt.trim()}`);
+      }
+      const text = blocks.length ? `## Active Skills:\n${blocks.join('\n\n')}` : '';
+      if (kernel.setSkillPrompts) kernel.setSkillPrompts(text);
+    } catch (e) {
+      console.warn('[Skills] refresh prompts failed:', e.message);
+    }
+  }
+  const acpAdapter = new AcpAdapter();
+  let vectorIndex = null;
+  let lanceIndex = null;
+  let lspBridge = null;
+  let sandboxRunner = new SandboxRunner(bootServiceRoot, { enabled: false });
+
+  function loadSandboxConfig() {
+    try {
+      if (fs.existsSync(SANDBOX_CONFIG_PATH)) {
+        const cfg = fs.readJsonSync(SANDBOX_CONFIG_PATH);
+        sandboxRunner = new SandboxRunner(currentProjectRoot || bootServiceRoot, cfg);
+        kernel.setSandboxRunner(sandboxRunner);
+        return cfg;
+      }
+    } catch { /* ignore */ }
+    return {
+      enabled: false,
+      image: 'node:20-bookworm-slim',
+      playwrightImage: 'mcr.microsoft.com/playwright:v1.49.0-jammy'
+    };
+  }
+
+  function getVectorIndex() {
+    if (!currentProjectRoot) return null;
+    if (!vectorIndex || vectorIndex.projectRoot !== currentProjectRoot) {
+      vectorIndex = new VectorIndex(currentProjectRoot, ollamaHttp());
+    }
+    return vectorIndex;
+  }
+
+  function loadAgentConfig() {
+    try {
+      if (fs.existsSync(AGENT_CONFIG_PATH)) return fs.readJsonSync(AGENT_CONFIG_PATH);
+    } catch { /* ignore */ }
+    return { deferWrites: true, autoCommit: true };
+  }
+
+  function applyAgentConfig(cfg = loadAgentConfig()) {
+    if (kernel.setDeferWrites) kernel.setDeferWrites(cfg.deferWrites !== false);
+    if (kernel.setAutoCommit) kernel.setAutoCommit(cfg.autoCommit !== false);
+    return cfg;
+  }
+
+  function loadIndexingConfig() {
+    try {
+      if (fs.existsSync(INDEX_CONFIG_PATH)) {
+        return fs.readJsonSync(INDEX_CONFIG_PATH);
+      }
+    } catch { /* ignore */ }
+    return { vectorBackend: 'json', ftsBackend: 'json' };
+  }
+
+  function getLanceIndex() {
+    if (!currentProjectRoot) return null;
+    if (!lanceIndex || lanceIndex.projectRoot !== currentProjectRoot) {
+      const vi = getVectorIndex();
+      lanceIndex = new LanceVectorIndex(currentProjectRoot, (text) => vi.embed(text));
+    }
+    return lanceIndex;
+  }
+
+  let ftsIndex = null;
+  const streamRegistry = new StreamRegistry();
+  const hitlGraph = new HitlGraph();
+  let agentSessions = new AgentSessions(currentProjectRoot);
+  const agentAutomation = new AgentAutomation();
+
+  function getFtsIndex() {
+    if (!currentProjectRoot) return null;
+    const cfg = loadIndexingConfig();
+    const useSqlite = (cfg.ftsBackend === 'sqlite' || (indexer.index?.size || 0) > 800) && sqliteFtsAvailable();
+    if (useSqlite) {
+      if (!ftsIndex || ftsIndex.projectRoot !== currentProjectRoot || ftsIndex.constructor.name !== 'SqliteFtsIndex') {
+        if (ftsIndex?.close) try { ftsIndex.close(); } catch { /* ignore */ }
+        ftsIndex = new SqliteFtsIndex(currentProjectRoot);
+        ftsIndex.projectRoot = currentProjectRoot;
+        ftsIndex.load().catch(() => {});
+      }
+      return ftsIndex;
+    }
+    if (!ftsIndex || ftsIndex.projectRoot !== currentProjectRoot || ftsIndex.constructor.name === 'SqliteFtsIndex') {
+      if (ftsIndex?.close) try { ftsIndex.close(); } catch { /* ignore */ }
+      ftsIndex = new FtsIndex(currentProjectRoot);
+      ftsIndex.projectRoot = currentProjectRoot;
+      ftsIndex.load().catch(() => {});
+    }
+    return ftsIndex;
+  }
+
+  function getLspBridge() {
+    if (!currentProjectRoot) return null;
+    if (!lspBridge || lspBridge.projectRoot !== currentProjectRoot) {
+      if (lspBridge) lspBridge.stop();
+      lspBridge = new LspBridge(currentProjectRoot);
+      listExtensionLanguages(currentProjectRoot).then((langs) => {
+        if (lspBridge) lspBridge.setExtensionLanguages(langs);
+      }).catch(() => {});
+    }
+    return lspBridge;
+  }
+
+  agentAutomation.setTriggerHandler(async (job) => {
+    if (!currentProjectRoot || !job.prompt) return;
+    console.log('[Automation] Triggered job', job.id);
+    try {
+      await kernel.executeAutonomousLoop(job.prompt, { mode: 'agent' });
+    } catch (e) {
+      console.error('[Automation] Job failed:', e.message);
+    }
+  });
   const smartWebSearcher = {
     async search(query, opts = {}) {
       const q = String(query || '').trim();
@@ -199,9 +417,74 @@ async function main() {
 
   const initServices = () => {
     engine.init().then(() => console.log('[Engine] Localized storage ready'));
-    kernel.init().then(() => console.log('[Kernel] Ready'));
-    if (currentProjectRoot) indexer.scan();
+      kernel.init().then(() => {
+        kernel.setApprovalManager(toolApproval);
+        kernel.setLlmGateway(llmGateway);
+        applyAgentConfig();
+        loadSandboxConfig();
+        console.log('[Kernel] Ready');
+      });
+    if (currentProjectRoot) {
+      agentSessions.setProjectRoot(currentProjectRoot);
+      indexer.scan().then(async () => {
+        const vi = getVectorIndex();
+        if (vi) {
+          indexer.setVectorIndex(vi);
+          await vi.load().catch(() => {});
+        }
+        const fts = getFtsIndex();
+        if (fts) {
+          indexer.setFtsIndex(fts);
+          if (fts.rebuildFromIndexer) fts.rebuildFromIndexer(indexer);
+        }
+        kernel.indexer = indexer;
+        const cfg = loadIndexingConfig();
+        const fileCount = indexer.index?.size || 0;
+        const useLance = cfg.vectorBackend === 'lancedb' || fileCount > 400;
+        if (useLance && vi) {
+          try {
+            const li = getLanceIndex();
+            const needsRebuild = await li.needsRebuild(vi);
+            if (needsRebuild) {
+              await li.rebuildFromVectorIndex(vi);
+              console.log(`[Indexer] LanceDB rebuilt (${fileCount} files)`);
+            } else {
+              console.log(`[Indexer] LanceDB loaded from cache (${fileCount} files)`);
+            }
+            indexer.setLanceIndex(li);
+            if (cfg.vectorBackend !== 'lancedb') {
+              fs.writeJsonSync(INDEX_CONFIG_PATH, { ...cfg, vectorBackend: 'lancedb' }, { spaces: 2 });
+            }
+            console.log(`[Indexer] LanceDB active (${fileCount} files)`);
+          } catch (e) {
+            console.warn('[Indexer] LanceDB init skipped:', e.message);
+          }
+        }
+        try {
+          const langs = await listExtensionLanguages(currentProjectRoot);
+          const bridge = getLspBridge();
+          if (bridge) bridge.setExtensionLanguages(langs);
+        } catch { /* non-fatal */ }
+      });
+      ensureDefaults(currentProjectRoot).catch(() => {});
+      mcpManager.connectAll(currentProjectRoot).then((tools) => {
+        kernel.setMcpManager(mcpManager);
+        console.log(`[MCP] ${tools.length} tools available`);
+      }).catch((e) => console.warn('[MCP] Init skipped:', e.message));
+    }
+    agentAutomation.load();
+    agentAutomation.startAll();
+    skillManager.setProjectRoot(currentProjectRoot);
+    refreshSkillPrompts();
   };
+
+  mountAgentServer(app, {
+    kernel,
+    indexer,
+    agentSessions,
+    hitlGraph,
+    getProjectRoot: () => currentProjectRoot
+  });
 
   await github.init();
   await health.init();
@@ -224,6 +507,116 @@ async function main() {
     }
   });
 
+  // 🧠 Project memory (ContextEngine remember/recall)
+  app.get('/api/v3/memory', (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      if (q) return res.json({ ok: true, facts: kernel.recallProjectFacts(q, Number(req.query.limit) || 5) });
+      res.json({
+        ok: true,
+        facts: kernel.memory?.facts || [],
+        learned_patterns: kernel.memory?.learned_patterns || []
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/memory', async (req, res) => {
+    try {
+      const { text, scope, tags } = req.body || {};
+      const r = await kernel.rememberFact(text, { scope, tags });
+      res.json(r);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ───────────────────────── Skill system (S1) ─────────────────────────
+  app.get('/api/v3/skill/catalog', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      res.json({ ok: true, skills: await skillManager.discover() });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/api/v3/skill/:id/inspect', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      res.json(await skillManager.inspect(req.params.id));
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/api/v3/skill/:id/eval', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const s = await skillManager._findSkill(req.params.id);
+      if (!s) return res.status(404).json({ ok: false, error: 'Skill not found' });
+      res.json({ ok: true, ...(await evaluateSkill(s.dir, s.manifest)) });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/v3/skill/:id/install', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const r = await skillManager.install(req.params.id);
+      if (r.ok) auditLog.record(currentProjectRoot, { actor: 'user', action: 'skill.install', skillId: req.params.id });
+      res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/v3/skill/:id/grant', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const r = await skillManager.grant(req.params.id, req.body?.permissions);
+      if (r.ok) auditLog.record(currentProjectRoot, { actor: 'user', action: 'skill.grant', skillId: req.params.id, detail: r.summary });
+      res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/v3/skill/:id/activate', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const r = await skillManager.setActive(req.params.id, req.body?.active !== false);
+      if (r.ok) { auditLog.record(currentProjectRoot, { actor: 'user', action: r.active ? 'skill.activate' : 'skill.deactivate', skillId: req.params.id }); await refreshSkillPrompts(); }
+      res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/v3/skill/:id/uninstall', async (req, res) => {
+    try {
+      const r = await skillManager.uninstall(req.params.id);
+      auditLog.record(currentProjectRoot, { actor: 'user', action: 'skill.uninstall', skillId: req.params.id });
+      await refreshSkillPrompts();
+      res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // Run a Skill's shipped capability code in the sandbox (routes via Tool Layer).
+  app.post('/api/v3/skill/:id/run', async (req, res) => {
+    try {
+      skillManager.setProjectRoot(currentProjectRoot);
+      const id = req.params.id;
+      const active = await skillManager.activeSkills();
+      const entry = active.find((s) => s.manifest.id === id);
+      if (!entry) return res.status(400).json({ ok: false, error: 'Skill not active (install → grant → activate first)' });
+      if (!entry.manifest.capability) return res.status(400).json({ ok: false, error: 'Skill ships no capability code' });
+      const code = await fs.readFile(path.join(entry.dir, entry.manifest.capability), 'utf8');
+      const result = await runSkillCode(code, {
+        granted: entry.granted,
+        skillId: id,
+        input: req.body?.input || {},
+        executeTool: (name, args) => kernel.executeTool(name, args, null),
+        audit: (e) => auditLog.record(currentProjectRoot, { actor: 'skill', action: 'capability', ...e })
+      });
+      res.json({ ok: true, ...result });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/api/v3/audit', (req, res) => {
+    res.json({ ok: true, entries: auditLog.read(currentProjectRoot, Number(req.query.limit) || 200) });
+  });
+
   app.post('/api/repair', async (req, res) => {
     try {
       const { id } = req.body;
@@ -239,7 +632,10 @@ async function main() {
   app.post('/api/v3/negah/execute', async (req, res) => {
     try {
       if (Array.isArray(req.body?.commands) && req.body.commands.length) {
-        const directRun = await negahRunner.runCommands(req.body.commands, { cwd: currentProjectRoot });
+        const directRun = await negahRunner.runCommands(req.body.commands, {
+          cwd: currentProjectRoot,
+          onVisual: emitAgentVisualAction
+        });
         return res.json({ ok: true, mode: 'direct_runner', ...directRun });
       }
       const startedAt = Date.now();
@@ -279,7 +675,10 @@ async function main() {
           });
         }
 
-        const runnerResult = await negahRunner.runCommands(commands, { cwd: currentProjectRoot });
+        const runnerResult = await negahRunner.runCommands(commands, {
+          cwd: currentProjectRoot,
+          onVisual: emitAgentVisualAction
+        });
         trace.push({ iteration: i + 1, runner: runnerResult });
         state.last_action_status = runnerResult.status;
         state.last_action_message = runnerResult.summary;
@@ -527,16 +926,75 @@ app.get('/api/ai/system-stats', (req, res) => {
   });
 
   // Project Management API
-  app.get('/api/v3/project/path', (req, res) => {
+  app.get('/api/v3/project/path', async (req, res) => {
     if (!currentProjectRoot) {
-      return res.json({ path: null, name: null });
+      return res.json({ path: null, name: null, folders: [] });
     }
-    res.json({ path: currentProjectRoot, name: path.basename(currentProjectRoot) });
+    const wm = await getWorkspaceManager();
+    res.json({
+      path: currentProjectRoot,
+      name: path.basename(currentProjectRoot),
+      folders: wm?.list() || [{ name: path.basename(currentProjectRoot), path: currentProjectRoot }]
+    });
+  });
+
+  app.get('/api/v3/workspace', async (req, res) => {
+    try {
+      const wm = await getWorkspaceManager();
+      if (!wm) return res.json({ ok: true, folders: [] });
+      res.json({ ok: true, primary: wm.primaryRoot, folders: wm.list() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/workspace/folders', async (req, res) => {
+    try {
+      const wm = await getWorkspaceManager();
+      if (!wm) return res.status(400).json({ ok: false, error: 'No project open' });
+      const folderPath = String(req.body?.path || '');
+      const name = req.body?.name ? String(req.body.name) : undefined;
+      const folders = await wm.addFolder(folderPath, name);
+      indexer.setWorkspaceManager(wm);
+      if (typeof indexer.scan === 'function') await indexer.scan().catch(() => {});
+      res.json({ ok: true, folders });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/workspace/folders', async (req, res) => {
+    try {
+      const wm = await getWorkspaceManager();
+      if (!wm) return res.status(400).json({ ok: false, error: 'No project open' });
+      const folderPath = String(req.body?.path || req.query?.path || '');
+      const folders = await wm.removeFolder(folderPath);
+      indexer.setWorkspaceManager(wm);
+      if (typeof indexer.scan === 'function') await indexer.scan().catch(() => {});
+      res.json({ ok: true, folders });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/workspace/resolve', async (req, res) => {
+    try {
+      const wm = await getWorkspaceManager();
+      if (!wm) return res.status(400).json({ ok: false, error: 'No project open' });
+      const resolved = wm.resolveFile(req.body?.ref || req.body?.path);
+      if (!resolved) return res.status(404).json({ ok: false, error: 'Not found' });
+      res.json({ ok: true, ...resolved });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
   });
 
   app.post('/api/v3/project/close', (req, res) => {
+    if (currentProjectRoot) clearSandbox(currentProjectRoot);
     currentProjectRoot = null;
     notebookPath = null;
+    workspaceManager = null;
+    agentKernelRef?.setWorkspaceManager?.(null);
     saveConfig();
     res.json({ ok: true });
   });
@@ -562,12 +1020,17 @@ app.get('/api/ai/system-stats', (req, res) => {
 
       // Re-initialize services
       indexer = new Indexer(currentProjectRoot);
+      indexerRef = indexer;
       kernel = new AgentKernel(currentProjectRoot, ollamaHttp(), indexer);
+      agentKernelRef = kernel;
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       negahRunner.setProjectRoot(currentProjectRoot);
       companionShellPty.updateDefaultCwd(currentProjectRoot);
 
       initServices();
+      await getWorkspaceManager();
+      indexer.setWorkspaceManager(workspaceManager);
+      if (currentProjectRoot) clearSandbox(currentProjectRoot);
       
       console.log(`[FA7 OS] Switched project root to: ${currentProjectRoot}`);
       res.json({ ok: true, path: currentProjectRoot });
@@ -890,6 +1353,112 @@ app.get('/api/ai/system-stats', (req, res) => {
     }
   });
 
+  app.get('/api/v3/agent/actions/stream', (req, res) => {
+    subscribeAgentVisualActions(res);
+  });
+
+  app.get('/api/v3/agent/actions/history', (req, res) => {
+    res.json({ ok: true, actions: getAgentVisualHistory(Number(req.query?.limit || 40)) });
+  });
+
+  app.get('/api/v3/project/preview-url', async (req, res) => {
+    try {
+      const port = Number(process.env.FA7_PORT || 3001);
+      const {
+        resolveProjectPreviewUrl,
+        FA7_UI_PORT,
+        HOOSH_APP_ROOT
+      } = require('./lib/projectPreviewUrl');
+      const resolved = await resolveProjectPreviewUrl(currentProjectRoot, {
+        scanTerminalUrls: (opts) => companionShellPty.scanTerminalDevUrls(opts)
+      });
+      return res.json({
+        ...resolved,
+        companionUrl: `http://localhost:${port}`,
+        fa7UiPort: FA7_UI_PORT,
+        hooshAppRoot: HOOSH_APP_ROOT
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/project/preview-url', async (req, res) => {
+    try {
+      if (!currentProjectRoot) {
+        return res.status(400).json({ ok: false, error: 'No project open' });
+      }
+      const { savePreviewUrl, normalizePreviewUrl, probeUrl, isHooshProjectRoot } = require('./lib/projectPreviewUrl');
+      const url = normalizePreviewUrl(req.body?.url);
+      if (!url) return res.status(400).json({ ok: false, error: 'Valid preview url required' });
+      const probe = await probeUrl(url);
+      if (!probe.ok) {
+        return res.status(400).json({ ok: false, error: 'Preview URL is not reachable on this machine' });
+      }
+      if (probe.isShell && !isHooshProjectRoot(currentProjectRoot)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'That URL serves the Hoosh IDE itself — start your project dev server and use its URL instead.'
+        });
+      }
+      const saved = await savePreviewUrl(currentProjectRoot, url);
+      return res.json({ ok: true, url: saved, projectRoot: currentProjectRoot });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/browser/capture', async (req, res) => {
+    try {
+      const url = String(req.body?.url || '').trim();
+      if (!url) return res.status(400).json({ ok: false, error: 'url required' });
+      const nav = kavoshKernel.evaluateNavigation(url);
+      if (!nav.ok) return res.status(400).json(nav);
+      const { captureBrowserPage } = require('./lib/sandboxPlaywright');
+      const sbCfg = loadSandboxConfig();
+      const out = await captureBrowserPage(currentProjectRoot, {
+        url: nav.url || url,
+        sandbox: sandboxRunner.isEnabled(),
+        playwrightImage: sbCfg?.playwrightImage
+      });
+      if (!out.ok) {
+        return res.status(500).json({ ok: false, error: out.error || out.stderr || 'capture failed' });
+      }
+      return res.json({
+        ok: true,
+        url: out.url,
+        title: out.title,
+        text: out.text,
+        selector: out.selector,
+        screenshot: out.screenshot
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message || 'capture failed' });
+    }
+  });
+
+  app.post('/api/v3/browser/pick-context', async (req, res) => {
+    try {
+      const url = String(req.body?.url || '').trim();
+      if (!url) return res.status(400).json({ ok: false, error: 'url required' });
+      const nav = kavoshKernel.evaluateNavigation(url);
+      if (!nav.ok) return res.status(400).json(nav);
+      const { captureBrowserPage } = require('./lib/sandboxPlaywright');
+      const out = await captureBrowserPage(currentProjectRoot, { url: nav.url || url, sandbox: false });
+      if (!out.ok) {
+        return res.status(500).json({ ok: false, error: out.error || 'pick failed' });
+      }
+      return res.json({
+        ok: true,
+        url: out.url,
+        selector: out.selector || 'body',
+        excerpt: String(out.text || '').slice(0, 2000)
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message || 'pick failed' });
+    }
+  });
+
   app.get('/api/v3/browser/kavosh/proxy', async (req, res) => {
     try {
       const raw = String(req.query?.url || '').trim();
@@ -991,21 +1560,1347 @@ app.get('/api/ai/system-stats', (req, res) => {
     res.json({ context });
   });
 
+  app.get('/api/v3/symbols/search', async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim().toLowerCase();
+      if (!q) return res.json({ results: [] });
+      const out = [];
+      for (const [relPath, data] of (indexer.index || new Map()).entries()) {
+        for (const s of (data.symbols || []).slice(0, 80)) {
+          const name = String(s.content || '').toLowerCase();
+          if (!name.includes(q)) continue;
+          out.push({
+            id: `${relPath}:${s.line || 0}:${s.content}`,
+            path: relPath,
+            line: s.line || 0,
+            symbol: s.content
+          });
+          if (out.length >= 25) break;
+        }
+        if (out.length >= 25) break;
+      }
+      res.json({ results: out });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/symbols/context', async (req, res) => {
+    try {
+      const raw = String(req.query.id || '');
+      const [relPath, lineStr] = raw.split(':');
+      if (!relPath) return res.status(400).json({ ok: false, error: 'id required' });
+      const line = Math.max(1, Number(lineStr || 1));
+      const fullPath = path.join(currentProjectRoot || bootServiceRoot, relPath);
+      const content = await fs.readFile(fullPath, 'utf8');
+      const lines = content.split('\n');
+      const start = Math.max(0, line - 6);
+      const end = Math.min(lines.length, line + 6);
+      const snippet = lines.slice(start, end).join('\n');
+      res.json({ ok: true, path: relPath, line, snippet });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/ai/repo-map', (req, res) => {
+    const q = req.query.q || '';
+    const map = indexer.getRepoMap ? indexer.getRepoMap(q) : indexer.getProjectMap();
+    res.json({ map });
+  });
+
+  app.post('/api/ai/semantic-search', async (req, res) => {
+    try {
+      const query = String(req.body?.query || '').trim();
+      if (!query) return res.status(400).json({ ok: false, error: 'query required' });
+      const cfg = loadIndexingConfig();
+      let hits = [];
+      if (cfg.vectorBackend === 'lancedb') {
+        const li = getLanceIndex();
+        hits = await li.search(query, Number(req.body?.topK) || 8);
+      } else {
+        hits = await indexer.semanticSearch(query, Number(req.body?.topK) || 8);
+      }
+      res.json({ ok: true, hits });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/ai/hybrid-search', async (req, res) => {
+    try {
+      const query = String(req.body?.query || '').trim();
+      if (!query) return res.status(400).json({ ok: false, error: 'query required' });
+      const hits = await indexer.hybridSearch(query, Number(req.body?.topK) || 8);
+      res.json({ ok: true, ...hits });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/ai/fts/rebuild', async (req, res) => {
+    try {
+      const fts = getFtsIndex();
+      if (!fts) return res.status(400).json({ ok: false, error: 'No project' });
+      const result = fts.rebuildFromIndexer(indexer);
+      await fts.save();
+      indexer.setFtsIndex(fts);
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/gather', async (req, res) => {
+    try {
+      const gather = new GatherMode(kernel, indexer, llmGateway);
+      const events = [];
+      const context = await gather.gather(req.body?.goal || '', {
+        onEvent: (type, data) => events.push({ type, ...data })
+      });
+      res.json({ ok: true, context, events });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/ai/chat/abort', (req, res) => {
+    const { streamId } = req.body || {};
+    const ok = streamId ? streamRegistry.abort(streamId) : false;
+    if (!ok) streamRegistry.abortAll();
+    res.json({ ok: true, aborted: ok || !streamId });
+  });
+
+  app.get('/api/v3/agent-sessions', async (req, res) => {
+    res.json({ sessions: await agentSessions.list() });
+  });
+
+  app.post('/api/v3/agent-sessions', async (req, res) => {
+    const s = await agentSessions.create(req.body?.title);
+    res.json({ ok: true, session: s });
+  });
+
+  app.get('/api/v3/agent-sessions/:id', async (req, res) => {
+    const s = await agentSessions.get(req.params.id);
+    if (!s) return res.status(404).json({ error: 'Not found' });
+    res.json({ session: s });
+  });
+
+  app.delete('/api/v3/agent-sessions/:id', async (req, res) => {
+    await agentSessions.remove(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.get('/api/v3/automation', (req, res) => {
+    res.json({ jobs: agentAutomation.list() });
+  });
+
+  app.post('/api/v3/automation', (req, res) => {
+    const job = agentAutomation.add(req.body || {});
+    res.json({ ok: true, job });
+  });
+
+  app.delete('/api/v3/automation/:id', (req, res) => {
+    agentAutomation.remove(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/v3/automation/webhook/:secret', async (req, res) => {
+    const job = agentAutomation.findByWebhookSecret(req.params.secret);
+    if (!job) return res.status(404).json({ ok: false, error: 'Unknown webhook' });
+    await agentAutomation.fire({ ...job, prompt: req.body?.prompt || job.prompt });
+    res.json({ ok: true });
+  });
+
+  app.get('/api/v3/hitl/workflows', (req, res) => {
+    res.json({ workflows: hitlGraph.list() });
+  });
+
+  app.post('/api/v3/hitl/workflows', (req, res) => {
+    const wf = hitlGraph.create(req.body?.name, req.body?.steps);
+    res.json({ ok: true, workflow: wf });
+  });
+
+  app.post('/api/v3/hitl/workflows/:id/approve', (req, res) => {
+    const wf = hitlGraph.approve(req.params.id, req.body?.approved !== false);
+    res.json({ ok: true, workflow: wf });
+  });
+
+  app.post('/api/v3/hitl/workflows/:id/run', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      let wf = hitlGraph.get(req.params.id);
+      if (!wf) return res.status(404).json({ ok: false, error: 'Workflow not found' });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      while (wf && wf.status === 'running' && wf.current < wf.steps.length) {
+        const step = wf.steps[wf.current];
+        if (!step) break;
+        if (step.requiresApproval && step.status === 'pending') {
+          writeJsonLine(res, { agent_event: { type: 'hitl_wait', workflowId: wf.id, step } });
+          return res.end();
+        }
+        writeJsonLine(res, { agent_event: { type: 'hitl_step_start', step } });
+        const result = await kernel.executeAutonomousLoop(step.prompt || step.label, {
+          mode: 'agent',
+          onEvent: (event) => writeJsonLine(res, { agent_event: event })
+        });
+        hitlGraph.completeStep(wf.id, JSON.stringify(result).slice(0, 4000));
+        hitlGraph.approve(wf.id, true);
+        wf = hitlGraph.get(req.params.id);
+      }
+      writeJsonLine(res, { agent_event: { type: 'hitl_complete', workflowId: wf?.id, status: wf?.status } });
+      res.end();
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e.message });
+      else {
+        writeJsonLine(res, { agent_event: { type: 'error', message: e.message } });
+        res.end();
+      }
+    }
+  });
+
+  app.post('/api/v3/mission/implement', async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      const sessionId = req.body?.sessionId ? String(req.body.sessionId) : null;
+      const result = await kernel.implementPendingPlan((event) => {
+        writeJsonLine(res, { message: { content: '' }, agent_event: event });
+      });
+      if (!result.ok) {
+        writeJsonLine(res, { agent_event: { type: 'error', message: result.error || 'Implement failed' } });
+      } else if (!result.paused) {
+        writeJsonLine(res, { agent_event: { type: 'done', done: true } });
+        if (sessionId) {
+          await finalizeAgentSession(sessionId, 'Plan implementation completed.');
+        }
+      }
+      res.end();
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e.message });
+      else {
+        writeJsonLine(res, { agent_event: { type: 'error', message: e.message } });
+        res.end();
+      }
+    }
+  });
+
+  app.post('/api/v3/mission/continue', async (req, res) => {
+    try {
+      const reply = String(req.body?.reply || '').trim();
+      if (!reply) return res.status(400).json({ ok: false, error: 'reply is required' });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const result = await kernel.resumeMission(reply, (event) => {
+        writeJsonLine(res, { message: { content: '' }, agent_event: event });
+      });
+      if (!result.ok) {
+        writeJsonLine(res, { agent_event: { type: 'error', message: result.error || 'Resume failed' } });
+      } else if (result.result) {
+        writeJsonLine(res, { message: { content: String(result.result).slice(0, 8000) }, agent_event: { type: 'done', done: true } });
+      }
+      res.end();
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/agent-sessions/:id/messages', async (req, res) => {
+    try {
+      const message = req.body?.message;
+      if (!message) return res.status(400).json({ ok: false, error: 'message required' });
+      const session = await agentSessions.appendMessage(req.params.id, message);
+      res.json({ ok: true, session });
+    } catch (e) {
+      res.status(404).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/ai/vector/rebuild', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const vi = getVectorIndex();
+      const result = await vi.rebuildFromIndexer(indexer, Number(req.body?.maxFiles) || 80);
+      indexer.setVectorIndex(vi);
+      const cfg = loadIndexingConfig();
+      if (cfg.vectorBackend === 'lancedb') {
+        const li = getLanceIndex();
+        const seeded = await li.rebuildFromVectorIndex(vi);
+        return res.json({ ok: true, ...result, lancedb: seeded });
+      }
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/indexing/config', (req, res) => {
+    const cfg = loadIndexingConfig();
+    res.json({ ...cfg, sqliteAvailable: sqliteFtsAvailable() });
+  });
+
+  app.get('/api/v3/agent/config', (req, res) => {
+    res.json(loadAgentConfig());
+  });
+
+  app.post('/api/v3/agent/config', (req, res) => {
+    try {
+      const cfg = {
+        deferWrites: req.body?.deferWrites !== false,
+        autoCommit: req.body?.autoCommit !== false
+      };
+      fs.writeJsonSync(AGENT_CONFIG_PATH, cfg, { spaces: 2 });
+      applyAgentConfig(cfg);
+      res.json({ ok: true, config: cfg });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/indexing/config', (req, res) => {
+    try {
+      const cfg = {
+        vectorBackend: String(req.body?.vectorBackend || 'json'),
+        ftsBackend: String(req.body?.ftsBackend || 'json')
+      };
+      if (!['json', 'lancedb'].includes(cfg.vectorBackend)) cfg.vectorBackend = 'json';
+      if (!['json', 'sqlite'].includes(cfg.ftsBackend)) cfg.ftsBackend = 'json';
+      if (cfg.ftsBackend === 'sqlite' && !sqliteFtsAvailable()) cfg.ftsBackend = 'json';
+      fs.writeJsonSync(INDEX_CONFIG_PATH, cfg, { spaces: 2 });
+      ftsIndex = null;
+      res.json({ ok: true, config: cfg, sqliteAvailable: sqliteFtsAvailable() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/lsp/completion', async (req, res) => {
+    try {
+      const { filePath, line, character, content } = req.body || {};
+      const bridge = getLspBridge();
+      if (!bridge) return res.json({ ok: false, items: [] });
+      const items = await bridge.completion(filePath, Number(line) || 1, Number(character) || 0, content || '');
+      res.json({ ok: true, items });
+    } catch (e) {
+      res.json({ ok: false, items: [], error: e.message });
+    }
+  });
+
+  app.post('/api/v3/lsp/hover', async (req, res) => {
+    try {
+      const { filePath, line, character, content } = req.body || {};
+      const bridge = getLspBridge();
+      if (!bridge) return res.json({ ok: false, hover: null });
+      const hover = await bridge.hover(filePath, Number(line) || 1, Number(character) || 0, content || '');
+      res.json({ ok: true, hover });
+    } catch (e) {
+      res.json({ ok: false, hover: null, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/lsp/definition', async (req, res) => {
+    try {
+      const { filePath, line, character, content } = req.body || {};
+      const bridge = getLspBridge();
+      if (!bridge) return res.json({ ok: false, definition: null });
+      const definition = await bridge.definition(filePath, Number(line) || 1, Number(character) || 0, content || '');
+      res.json({ ok: true, definition });
+    } catch (e) {
+      res.json({ ok: false, definition: null, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/lsp/status', (req, res) => {
+    try {
+      const bridge = getLspBridge();
+      res.json({ ok: true, servers: bridge?.status?.() || [] });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/commands', async (req, res) => {
+    try {
+      const commands = await listExtensionCommands(currentProjectRoot);
+      res.json({ ok: true, commands });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/extensions/commands/execute', async (req, res) => {
+    try {
+      const { command, args } = req.body || {};
+      const result = await executeCommand(currentProjectRoot, command, args || {}, {
+        indexer,
+        runLint: async (root, files) => runPostEditChecks(root, files),
+        gitStatus: (root) => gitWorkspace.getStatus(root)
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/activations', async (req, res) => {
+    try {
+      const openFiles = String(req.query.openFiles || '').split(',').filter(Boolean);
+      const wm = await getWorkspaceManager();
+      const activations = await listExtensionActivations(currentProjectRoot, openFiles, wm);
+      res.json({ ok: true, activations });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/keybindings', async (req, res) => {
+    try {
+      const keybindings = await listExtensionKeybindings(currentProjectRoot);
+      const ctx = {
+        editorTextFocus: req.query.editorTextFocus === '1',
+        resourceLangId: req.query.lang ? String(req.query.lang) : ''
+      };
+      const active = filterKeybindings(keybindings, ctx);
+      res.json({ ok: true, keybindings, active });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/extensions/keybindings/execute', async (req, res) => {
+    try {
+      const key = String(req.body?.key || '').trim();
+      const keybindings = await listExtensionKeybindings(currentProjectRoot);
+      const hit = keybindings.find((kb) => kb.key === key);
+      if (!hit) return res.status(404).json({ ok: false, error: 'No command for keybinding' });
+      const result = await executeCommand(currentProjectRoot, hit.command, req.body?.args || {}, {
+        indexer,
+        runLint: async (root, files) => runPostEditChecks(root, files),
+        gitStatus: (root) => gitWorkspace.getStatus(root)
+      });
+      res.json({ ok: true, command: hit.command, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/runtime', async (req, res) => {
+    try {
+      const contributions = await listContributions(currentProjectRoot);
+      res.json({ ok: true, contributions });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/extensions/webviews/register', (req, res) => {
+    try {
+      const { id, html, extension } = req.body || {};
+      if (!id) return res.status(400).json({ ok: false, error: 'Missing id' });
+      const webview = registerWebview(id, html, extension);
+      res.json({ ok: true, webview });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/webviews/:id', (req, res) => {
+    try {
+      const webview = getWebview(req.params.id);
+      if (!webview) return res.status(404).json({ ok: false, error: 'Not found' });
+      res.json({ ok: true, webview });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/extensions/sandbox/activate', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const result = await activateAll(currentProjectRoot);
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/sandbox/status', (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.json({ ok: true, commands: [], subscriptionCount: 0 });
+      res.json(sandboxStatus(currentProjectRoot));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/index/rescan', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const wm = await getWorkspaceManager();
+      indexer.setWorkspaceManager(wm);
+      await indexer.scan();
+      res.json({
+        ok: true,
+        fileCount: indexer.index?.size || 0,
+        folders: wm?.list()?.length || 1
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/index/status', async (req, res) => {
+    try {
+      const wm = await getWorkspaceManager();
+      const paths = Array.from(indexer.index?.keys?.() || []);
+      res.json({
+        ok: true,
+        fileCount: paths.length,
+        folders: wm?.list() || [],
+        samplePaths: paths.slice(0, 12)
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/gateway/catalog', async (req, res) => {
+    try {
+      const catalog = await mcpGateway.catalog();
+      res.json({ ok: true, ...catalog });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/mcp/gateway/invoke', async (req, res) => {
+    try {
+      const { toolId, arguments: toolArgs } = req.body || {};
+      if (!toolId) return res.status(400).json({ ok: false, error: 'Missing toolId' });
+      const result = await mcpGateway.invoke(toolId, toolArgs || {});
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/gateway/resources', async (req, res) => {
+    try {
+      const resources = await mcpGateway.listResources();
+      res.json({ ok: true, resources });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/gateway/prompts', async (req, res) => {
+    try {
+      const prompts = await mcpGateway.listPrompts();
+      res.json({ ok: true, prompts });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/lm/tools', (req, res) => {
+    try {
+      const format = String(req.query.format || 'openai');
+      const tools = collectTools(mcpManager);
+      if (format === 'anthropic') {
+        return res.json({ ok: true, tools: toAnthropicTools(tools) });
+      }
+      res.json({ ok: true, tools: toOpenAIFunctions(tools), raw: tools });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/lm/invoke', async (req, res) => {
+    try {
+      const { name, arguments: toolArgs } = req.body || {};
+      const result = await invokeTool(name, toolArgs || {}, {
+        kernel,
+        mcpManager,
+        emit: () => {}
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/browser/agent', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const cfg = loadSandboxConfig();
+      const result = await runBrowserAgent(currentProjectRoot, {
+        goal: req.body?.goal,
+        url: req.body?.url,
+        maxSteps: req.body?.maxSteps,
+        sandbox: sandboxRunner.isEnabled(),
+        playwrightImage: cfg.playwrightImage,
+        kavosh: kavoshKernel,
+        llmGenerate: (p) => llmGateway.generate(p),
+        onVisualAction: emitAgentVisualAction
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/acp/backends', (req, res) => {
+    res.json({ backends: acpAdapter.list(), useAcpForChat: !!acpAdapter.config.useAcpForChat });
+  });
+
+  app.get('/api/v3/acp/config', (req, res) => {
+    res.json({ config: acpAdapter.config });
+  });
+
+  app.post('/api/v3/acp/config', (req, res) => {
+    try {
+      const cfg = acpAdapter.save(req.body || {});
+      res.json({ ok: true, config: cfg });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/acp/run', async (req, res) => {
+    try {
+      const { backendId, prompt } = req.body || {};
+      const result = await acpAdapter.run(backendId, prompt, currentProjectRoot);
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/acp/run-stream', async (req, res) => {
+    try {
+      const { backendId, prompt } = req.body || {};
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      const result = await acpAdapter.runStream(backendId, String(prompt || ''), currentProjectRoot, (chunk) => {
+        writeJsonLine(res, {
+          message: { content: chunk.text || '' },
+          agent_event: { type: chunk.type === 'stderr' ? 'error' : 'token', token: chunk.text }
+        });
+      });
+      writeJsonLine(res, {
+        message: { content: result.stdout || '' },
+        agent_event: { type: 'done', done: true, ok: result.ok }
+      });
+      res.end();
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e.message });
+      else res.end();
+    }
+  });
+
+  app.get('/api/v3/sandbox/config', (req, res) => {
+    res.json(loadSandboxConfig());
+  });
+
+  app.post('/api/v3/sandbox/config', (req, res) => {
+    try {
+      const cfg = {
+        enabled: !!req.body?.enabled,
+        image: String(req.body?.image || 'node:20-bookworm-slim'),
+        playwrightImage: String(req.body?.playwrightImage || 'mcr.microsoft.com/playwright:v1.49.0-jammy')
+      };
+      fs.writeJsonSync(SANDBOX_CONFIG_PATH, cfg, { spaces: 2 });
+      sandboxRunner = new SandboxRunner(currentProjectRoot || bootServiceRoot, cfg);
+      kernel.setSandboxRunner(sandboxRunner);
+      res.json({ ok: true, config: cfg });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/terminals', (req, res) => {
+    res.json({ terminals: companionShellPty.listNamedTerminals() });
+  });
+
+  app.post('/api/v3/terminals/create', (req, res) => {
+    try {
+      const name = String(req.body?.name || '').trim();
+      const result = companionShellPty.createNamedTerminal(name, {
+        cwd: currentProjectRoot || getPtyCwd(),
+        mode: req.body?.mode,
+        purpose: req.body?.purpose
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/languages', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.json({ languages: [] });
+      const languages = await listExtensionLanguages(currentProjectRoot);
+      res.json({ languages });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/grammars', async (req, res) => {
+    try {
+      const { listBuiltinGrammars } = require('./lib/builtinGrammars');
+      if (!currentProjectRoot) {
+        return res.json({ grammars: listBuiltinGrammars() });
+      }
+      res.json({ grammars: await listExtensionGrammars(currentProjectRoot) });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/grammar/:language', async (req, res) => {
+    try {
+      const lang = req.params.language;
+      if (currentProjectRoot) {
+        const grammars = await listExtensionGrammars(currentProjectRoot);
+        const g = grammars.find((x) => x.language === lang);
+        if (g?.grammarPath) {
+          const content = await fs.readFile(g.grammarPath, 'utf8');
+          return res.json({
+            language: g.language,
+            scopeName: g.scopeName,
+            content,
+            format: g.grammarPath.endsWith('.json') ? 'json' : 'plist'
+          });
+        }
+      }
+      const builtin = await getBuiltinGrammar(lang);
+      if (!builtin) return res.status(404).json({ error: 'Grammar not found' });
+      res.json({
+        language: builtin.language,
+        scopeName: builtin.scopeName,
+        content: builtin.content,
+        format: builtin.format
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/extensions/themes', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.json({ themes: [] });
+      res.json({ themes: await listExtensionThemes(currentProjectRoot) });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/rules', async (req, res) => {
+    if (!currentProjectRoot) return res.json({ rules: [] });
+    try {
+      const rules = await loadRules(currentProjectRoot);
+      res.json({ rules });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/skills/match', async (req, res) => {
+    if (!currentProjectRoot) return res.json({ skills: [] });
+    try {
+      const q = String(req.query.q || '');
+      const skills = await loadSkills(currentProjectRoot);
+      res.json({ skills: matchSkillsForQuery(skills, q) });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/skills', async (req, res) => {
+    if (!currentProjectRoot) return res.json({ skills: [] });
+    try {
+      const skills = await loadSkills(currentProjectRoot);
+      res.json({ skills });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/status', (req, res) => {
+    res.json(mcpManager.getStatus());
+  });
+
+  app.get('/api/v3/mcp/tools', (req, res) => {
+    res.json({ tools: mcpManager.listTools() });
+  });
+
+  app.post('/api/v3/mcp/reconnect', async (req, res) => {
+    try {
+      const tools = await mcpManager.connectAll(currentProjectRoot);
+      kernel.setMcpManager(mcpManager);
+      res.json({ ok: true, tools });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/checkpoints', async (req, res) => {
+    if (!currentProjectRoot) return res.json({ checkpoints: [] });
+    try {
+      const wm = await getWorkspaceManager();
+      const cm = new CheckpointManager(currentProjectRoot, wm);
+      const checkpoints = await cm.list();
+      res.json({ checkpoints });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/v3/checkpoints/restore', async (req, res) => {
+    try {
+      const { id, sessionId, messageIndex } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Missing checkpoint id' });
+      const wm = await getWorkspaceManager();
+      const cm = new CheckpointManager(currentProjectRoot, wm);
+      const result = await cm.restore(id);
+      let chatTruncated = false;
+      if (sessionId != null && messageIndex != null) {
+        const s = await agentSessions.get(String(sessionId));
+        if (s && Array.isArray(s.messages)) {
+          const idx = Math.max(0, Number(messageIndex));
+          s.messages = s.messages.slice(0, idx);
+          await agentSessions.save(s);
+          chatTruncated = true;
+        }
+      }
+      if (typeof indexer.scan === 'function') await indexer.scan();
+      res.json({ ...result, chatTruncated });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/context/git-diff', async (req, res) => {
+    try {
+      const { execSync } = require('child_process');
+      const cwd = currentProjectRoot || process.cwd();
+      const diff = execSync('git diff HEAD 2>/dev/null || git diff', {
+        cwd,
+        encoding: 'utf8',
+        maxBuffer: 500000,
+        timeout: 8000
+      });
+      res.json({ ok: true, diff: diff.slice(0, 120000) });
+    } catch (e) {
+      res.json({ ok: false, diff: '', error: e.message });
+    }
+  });
+
+  app.get('/api/v3/context/terminal', (req, res) => {
+    try {
+      const ctx = companionShellPty.getTerminalContext({
+        sessionId: req.query.sessionId,
+        purpose: req.query.purpose || 'all',
+        selection: req.query.selection || '',
+        clientBuffer: req.query.buffer || ''
+      });
+      const primary = ctx.primary || {};
+      const content = formatTerminalContext({
+        buffer: primary.buffer,
+        selection: primary.selection,
+        purpose: primary.purpose,
+        cwd: primary.cwd,
+        sessionName: primary.sessionName,
+        lastCommand: primary.lastCommand,
+        lastExitCode: primary.lastExitCode,
+        commandOutput: primary.commandOutput
+      });
+      res.json({ ok: true, content, sessions: ctx.sessions, primary });
+    } catch (e) {
+      res.status(500).json({ ok: false, content: '', error: e.message });
+    }
+  });
+
+  app.post('/api/v3/context/terminal/sync', (req, res) => {
+    try {
+      const result = companionShellPty.syncClientTerminalState(req.body || {});
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/context/problems/sync', (req, res) => {
+    try {
+      if (Array.isArray(req.body?.files)) {
+        const result = problemsContext.syncWorkspaceMarkers(req.body.files);
+        return res.json({ ok: true, ...result });
+      }
+      const result = problemsContext.syncMarkers(req.body?.markers, req.body?.activeFile);
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/context/problems/list', (req, res) => {
+    try {
+      const summary = problemsContext.getStoredSummary();
+      res.json({ ok: true, ...summary });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/context/problems', async (req, res) => {
+    try {
+      const file = req.query.file ? String(req.query.file) : '';
+      const runLint = req.query.runLint === '1' || req.query.runLint === 'true';
+      const content = await problemsContext.buildProblemsContext(currentProjectRoot, { file, runLint });
+      res.json({
+        ok: true,
+        content,
+        summary: problemsContext.getStoredSummary()
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, content: '', error: e.message });
+    }
+  });
+
+  app.get('/api/v3/docs/list', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.json({ sources: [] });
+      const config = await docsContext.loadConfig(currentProjectRoot);
+      res.json({ sources: config.sources || [] });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/docs/add', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const result = await docsContext.addDocSource(currentProjectRoot, req.body || {});
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/context/docs', async (req, res) => {
+    try {
+      if (!currentProjectRoot) {
+        return res.json({ ok: true, content: '## Documentation\n(no project open)', results: [] });
+      }
+      const q = String(req.query.q || '').trim();
+      let codeHits = [];
+      if (q && req.query.rerank === '1' && indexer.hybridSearch) {
+        try {
+          codeHits = await indexer.hybridSearch(q, 6);
+        } catch { /* ignore */ }
+      }
+      const { results } = await docsContext.searchDocs(currentProjectRoot, q, 8, { codeHits });
+      const content = docsContext.formatDocsContext(results, q);
+      res.json({ ok: true, content, results: results.map((r) => ({
+        id: r.id,
+        title: r.title,
+        path: r.path,
+        url: r.url,
+        score: r.score
+      })) });
+    } catch (e) {
+      res.status(500).json({ ok: false, content: '', error: e.message });
+    }
+  });
+
+  app.post('/api/v3/extensions/themes/convert', async (req, res) => {
+    try {
+      const theme = req.body?.theme || req.body;
+      const id = String(req.body?.id || 'hoosh-converted');
+      const converted = convertVscodeTheme(theme, id);
+      res.json({ ok: true, monaco: converted });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/sandbox/playwright', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const result = await runPlaywrightInSandbox(currentProjectRoot, {
+        url: req.body?.url,
+        script: req.body?.script,
+        sandbox: sandboxRunner.isEnabled(),
+        timeoutMs: Number(req.body?.timeoutMs) || 120000
+      });
+      res.json({ ok: !!result.ok, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/context/track-edit', (req, res) => {
+    const p = String(req.body?.path || '').replace(/^\.\//, '');
+    if (p && indexer.trackRecentEdit) indexer.trackRecentEdit(p);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/v3/context/apply-file', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const relPath = String(req.body?.path || '').replace(/^\.\//, '');
+      const content = String(req.body?.content ?? '');
+      if (!relPath || relPath.includes('..')) {
+        return res.status(400).json({ ok: false, error: 'Invalid path' });
+      }
+      const full = path.join(currentProjectRoot, relPath);
+      await fs.ensureDir(path.dirname(full));
+      await fs.writeFile(full, content, 'utf8');
+      if (indexer.trackRecentEdit) indexer.trackRecentEdit(relPath);
+      if (typeof indexer.scan === 'function') {
+        try { await indexer.scan(); } catch { /* non-fatal */ }
+      }
+      let lint = null;
+      let lintLoop = null;
+      if (req.body?.runLint !== false) {
+        lintLoop = await kernel.healFileWithLintLoop(relPath, 'en', null);
+        lint = lintLoop?.lint || null;
+      }
+      if (kernel.autoCommit) {
+        try {
+          gitWorkspace.stageFiles(currentProjectRoot, [relPath]);
+          gitWorkspace.commit(currentProjectRoot, `hoosh: apply ${relPath}`);
+        } catch { /* non-fatal */ }
+      }
+      res.json({
+        ok: true,
+        path: relPath,
+        lint: lint ? { failed: lint.failed, feedback: lint.feedback } : null,
+        lintLoop: lintLoop ? { passed: lintLoop.passed, attempts: lintLoop.attempts } : null,
+        healHint: lintLoop && !lintLoop.passed
+          ? 'Lint/test still failing after auto-heal attempts.'
+          : null
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/catalog', (req, res) => {
+    res.json({ catalog: listCatalog() });
+  });
+
+  app.post('/api/v3/mcp/catalog/add', async (req, res) => {
+    try {
+      const id = String(req.body?.id || '');
+      const cfgPath = currentProjectRoot
+        ? path.join(currentProjectRoot, '.fa7', 'mcp.json')
+        : path.join(os.homedir(), '.hoosh-os', 'mcp.json');
+      let current = { mcpServers: {} };
+      if (await fs.pathExists(cfgPath)) {
+        try { current = await fs.readJson(cfgPath); } catch { /* ignore */ }
+      }
+      const next = applyCatalogToConfig(current, id, currentProjectRoot || process.cwd());
+      if (!next) return res.status(404).json({ ok: false, error: 'Unknown catalog id' });
+      await fs.ensureDir(path.dirname(cfgPath));
+      await fs.writeJson(cfgPath, next, { spaces: 2 });
+      const tools = await mcpManager.connectAll(currentProjectRoot);
+      kernel.setMcpManager(mcpManager);
+      res.json({ ok: true, config: next, tools });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/engines/matrix', (req, res) => {
+    res.json({ engines: getEngineMatrix(llmGateway.getConfig()) });
+  });
+
+  app.get('/api/v3/engines/health', async (req, res) => {
+    try {
+      const engines = getEngineMatrix(llmGateway.getConfig());
+      const ollamaBase = ollamaHttp();
+      const rows = [];
+      for (const e of engines) {
+        let ok = false;
+        let detail = '';
+        try {
+          if (e.id === 'ollama' || e.provider === 'ollama') {
+            const r = await axios.get(`${ollamaBase}/api/tags`, { timeout: 4000 });
+            ok = r.status === 200;
+            detail = ok ? 'reachable' : `HTTP ${r.status}`;
+          } else {
+            ok = true;
+            detail = 'configured';
+          }
+        } catch (err) {
+          detail = err.message || 'unreachable';
+        }
+        rows.push({ id: e.id, name: e.name, ok, detail });
+      }
+      res.json({ ok: true, health: rows });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/engines/apply', (req, res) => {
+    try {
+      const engineId = String(req.body?.engineId || '');
+      const routing = suggestRoleRouting(engineId);
+      if (!routing) return res.status(404).json({ ok: false, error: 'Unknown engine' });
+      const cfg = llmGateway.getConfig();
+      const roleModels = { ...(cfg.roleModels || {}) };
+      for (const [role, v] of Object.entries(routing)) {
+        roleModels[role] = { ...(roleModels[role] || {}), provider: v.provider };
+      }
+      const updated = llmGateway.save({ ...cfg, roleModels });
+      res.json({ ok: true, config: updated, applied: engineId });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/approval/tools', (req, res) => {
+    res.json({ tools: toolApproval.listToolCategories() });
+  });
+
+  app.post('/api/v3/approval/per-tool', (req, res) => {
+    try {
+      const { tool, autoApprove } = req.body || {};
+      if (!tool) return res.status(400).json({ ok: false, error: 'tool required' });
+      const config = toolApproval.setPerTool(tool, autoApprove);
+      res.json({ ok: true, config });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/terminals/agent-bind', (req, res) => {
+    try {
+      const sessionId = String(req.body?.sessionId || '').trim();
+      if (!sessionId) return res.status(400).json({ ok: false, error: 'sessionId required' });
+      const result = companionShellPty.getOrCreateAgentTerminal(sessionId, {
+        cwd: currentProjectRoot || process.cwd(),
+        mode: req.body?.mode || 'system'
+      });
+      res.json({ ok: true, terminalName: result.name, reused: !!result.reused, cwd: result.cwd });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/lint/run', async (req, res) => {
+    try {
+      if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const files = Array.isArray(req.body?.files) ? req.body.files : [];
+      const result = await runPostEditChecks(currentProjectRoot, files);
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.post('/api/ai/complete', async (req, res) => {
     try {
-      const { prefix, suffix, fileName } = req.body;
-      const prompt = `<file>${fileName}</file>\n${prefix}<cursor>${suffix}\nExtract only the next few lines of code to complete the cursor position. Be extremely concise.`;
-
-      const response = await axios.post(`${ollamaHttp()}/api/generate`, {
-        model: 'mistral',
-        prompt: prompt,
-        stream: false,
-        options: { num_predict: 50, stop: ['\n\n', '```'] }
+      const server = new CompletionServer({
+        indexer,
+        lspBridge: getLspBridge(),
+        llmGateway
       });
-
-      res.json({ suggestion: response.data.response });
+      const result = await server.complete(req.body || {});
+      res.json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/v3/completion/server', async (req, res) => {
+    try {
+      const server = new CompletionServer({
+        indexer,
+        lspBridge: getLspBridge(),
+        llmGateway
+      });
+      const result = await server.complete(req.body || {});
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/providers/config', (req, res) => {
+    res.json({ ok: true, config: llmGateway.getConfig() });
+  });
+
+  app.post('/api/v3/providers/config', (req, res) => {
+    try {
+      const updated = llmGateway.save(req.body || {});
+      res.json({ ok: true, config: llmGateway.getConfig() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/providers/models', async (req, res) => {
+    try {
+      const models = await llmGateway.listModels();
+      res.json({ models });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/providers/catalog', (req, res) => {
+    res.json({ ok: true, catalog: getCatalog() });
+  });
+
+  app.post('/api/v3/providers/catalog/apply', (req, res) => {
+    try {
+      const providerId = String(req.body?.providerId || '');
+      if (!providerId) return res.status(400).json({ ok: false, error: 'Missing providerId' });
+      const updated = applyCatalogToProviders(llmGateway.config, providerId);
+      llmGateway.save(updated);
+      res.json({ ok: true, config: llmGateway.getConfig() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/providers/health', async (req, res) => {
+    try {
+      const health = await healthCheckAll(llmGateway, ollamaHttp);
+      res.json({ ok: true, health });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/providers/test', async (req, res) => {
+    try {
+      const providerId = String(req.body?.providerId || '');
+      if (!providerId) return res.status(400).json({ ok: false, error: 'Missing providerId' });
+      const { testProvider } = require('./lib/litellmRouter');
+      const prov = llmGateway.getProvider(providerId);
+      const result = await testProvider(prov, ollamaHttp);
+      res.json({ ok: true, providerId, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/approval/config', (req, res) => {
+    res.json({ ok: true, config: toolApproval.getConfig() });
+  });
+
+  app.post('/api/v3/approval/config', (req, res) => {
+    try {
+      const updated = toolApproval.save(req.body || {});
+      res.json({ ok: true, config: updated });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/approval/pending', (req, res) => {
+    res.json({ pending: toolApproval.listPending() });
+  });
+
+  app.post('/api/v3/approval/respond', (req, res) => {
+    const { id, approved } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    res.json(toolApproval.respond(id, !!approved));
+  });
+
+  app.get('/api/v3/git/status', (req, res) => {
+    res.json(gitWorkspace.getStatus(currentProjectRoot));
+  });
+
+  app.get('/api/v3/git/diff', (req, res) => {
+    res.json(gitWorkspace.getDiff(currentProjectRoot, req.query.path));
+  });
+
+  app.get('/api/v3/git/log', (req, res) => {
+    res.json({ log: gitWorkspace.getLog(currentProjectRoot, Number(req.query.limit) || 15) });
+  });
+
+  app.post('/api/v3/git/stage', (req, res) => {
+    const paths = req.body?.paths || [];
+    res.json(gitWorkspace.stageFiles(currentProjectRoot, paths));
+  });
+
+  app.post('/api/v3/git/commit', (req, res) => {
+    res.json(gitWorkspace.commit(currentProjectRoot, req.body?.message));
+  });
+
+  app.get('/api/v3/rules/list', async (req, res) => {
+    if (!currentProjectRoot) return res.json({ rules: [] });
+    res.json({ rules: await loadRules(currentProjectRoot) });
+  });
+
+  app.post('/api/v3/rules/save', async (req, res) => {
+    try {
+      const { name, content } = req.body || {};
+      if (!name) return res.status(400).json({ error: 'Missing name' });
+      const dir = path.join(currentProjectRoot, '.fa7', 'rules');
+      await fs.ensureDir(dir);
+      const safe = String(name).replace(/[^a-zA-Z0-9_-]/g, '_') + '.md';
+      await fs.writeFile(path.join(dir, safe), content || '');
+      res.json({ ok: true, path: `.fa7/rules/${safe}` });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/v3/mcp/config', async (req, res) => {
+    const cfgPath = currentProjectRoot
+      ? path.join(currentProjectRoot, '.fa7', 'mcp.json')
+      : path.join(os.homedir(), '.hoosh-os', 'mcp.json');
+    let config = { mcpServers: {} };
+    if (await fs.pathExists(cfgPath)) {
+      try { config = await fs.readJson(cfgPath); } catch { /* ignore */ }
+    }
+    res.json({ ok: true, path: cfgPath, config });
+  });
+
+  app.post('/api/v3/mcp/config', async (req, res) => {
+    try {
+      const cfgPath = path.join(currentProjectRoot || path.join(os.homedir(), '.hoosh-os'), '.fa7', 'mcp.json');
+      if (currentProjectRoot) {
+        await fs.ensureDir(path.dirname(cfgPath));
+      }
+      const actualPath = currentProjectRoot ? cfgPath : path.join(os.homedir(), '.hoosh-os', 'mcp.json');
+      await fs.ensureDir(path.dirname(actualPath));
+      await fs.writeJson(actualPath, req.body?.config || req.body || { mcpServers: {} }, { spaces: 2 });
+      const tools = await mcpManager.connectAll(currentProjectRoot);
+      kernel.setMcpManager(mcpManager);
+      res.json({ ok: true, tools });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/ai/compact', async (req, res) => {
+    try {
+      const { messages, useLlm } = req.body || {};
+      if (!Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
+      if (useLlm) {
+        const result = await compactWithLlm(messages, (opts) => llmGateway.generate(opts));
+        return res.json(result);
+      }
+      res.json(compactMessages(messages));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
   });
 
@@ -1086,26 +2981,35 @@ app.get('/api/ai/system-stats', (req, res) => {
   app.get(['/api/files', '/api/v3/files'], async (req, res) => {
     try {
       if (!currentProjectRoot) return res.json([]);
-      const dir = req.query.path ? path.join(currentProjectRoot, req.query.path) : currentProjectRoot;
-      const files = await fs.readdir(dir);
+      const wm = await getWorkspaceManager();
+      const listReq = resolveListRequest(wm, currentProjectRoot, req.query.path);
+
+      if (listReq.mode === 'roots') {
+        return res.json(listReq.folders.map((f) => ({
+          name: f.name,
+          isDirectory: true,
+          path: f.name,
+          workspaceRoot: true
+        })));
+      }
+
+      const files = await fs.readdir(listReq.absDir);
       const result = [];
-      
+
       for (const file of files) {
-        // Filter hidden files
         if (file.startsWith('.') && !file.startsWith('.fa7/extensions')) continue;
         if (['node_modules', '.git', 'dist', '.DS_Store'].includes(file)) continue;
 
-        const filePath = path.join(dir, file);
+        const filePath = path.join(listReq.absDir, file);
         const stats = await fs.stat(filePath);
         result.push({
           name: file,
           isDirectory: stats.isDirectory(),
-          path: path.relative(currentProjectRoot, filePath)
+          path: listReq.toEntryPath(file)
         });
       }
       res.json(result);
     } catch (err) {
-      // Deleted project root, missing subfolder, or path no longer exists — show empty tree in UI
       if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
         return res.json([]);
       }
@@ -1119,7 +3023,9 @@ app.get('/api/ai/system-stats', (req, res) => {
         return res.status(400).json({ error: 'No project is open' });
       }
       const p = req.query.path;
-      const filePath = path.isAbsolute(p) ? p : path.join(currentProjectRoot, p);
+      const wm = await getWorkspaceManager();
+      const filePath = resolveReadPath(wm, currentProjectRoot, p);
+      if (!filePath) return res.status(400).json({ error: 'Missing path' });
       let st;
       try {
         st = await fs.stat(filePath);
@@ -1149,10 +3055,13 @@ app.get('/api/ai/system-stats', (req, res) => {
       await ensureFa7Dir(currentProjectRoot);
       await initNotebook(currentProjectRoot);
       indexer = new Indexer(currentProjectRoot);
+      indexerRef = indexer;
       kernel = new AgentKernel(currentProjectRoot, ollamaHttp());
+      agentKernelRef = kernel;
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       companionShellPty.updateDefaultCwd(currentProjectRoot);
       initServices();
+      await getWorkspaceManager();
       saveConfig();
       saveRecentProject(currentProjectRoot, path.basename(currentProjectRoot));
       res.json({ success: true, root: currentProjectRoot });
@@ -1446,24 +3355,186 @@ app.get('/api/ai/system-stats', (req, res) => {
     }
   }
 
+  async function finalizeAgentSession(sessionId, content) {
+    const sid = sessionId ? String(sessionId) : '';
+    const body = String(content || '').trim();
+    if (!sid || !body) return;
+    try {
+      const existing = await agentSessions.get(sid);
+      if (!existing) {
+        console.warn('[FA7 OS] finalizeAgentSession: session not found', sid);
+        return;
+      }
+      await agentSessions.appendMessage(sid, {
+        role: 'assistant',
+        content: body.slice(0, 50000),
+        at: new Date().toISOString()
+      });
+      await agentSessions.setStatus(sid, 'idle');
+    } catch (e) {
+      console.warn('[FA7 OS] finalizeAgentSession failed:', e.message);
+    }
+  }
+
+  async function streamMissionLoop(res, goal, options = {}) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    let missionAborted = false;
+    let assistantText = '';
+    let finishMessage = '';
+    const sessionId = options.sessionId ? String(options.sessionId) : null;
+    const streamId = streamRegistry.register(res, () => {
+      missionAborted = true;
+      if (kernel.abortActiveMission) kernel.abortActiveMission();
+    });
+    res.setHeader('X-Stream-Id', streamId);
+
+    const wrapEvent = typeof options.wrapEvent === 'function'
+      ? options.wrapEvent
+      : (event) => ({ agent_event: event });
+
+    let paused = false;
+    try {
+      const result = await kernel.executeAutonomousLoop(goal, {
+        mode: options.mode,
+        projectName: options.projectName,
+        modeInstructions: options.modeInstructions,
+        onEvent: async (event) => {
+          if (missionAborted) return;
+          if (event.type === 'token' && event.token) assistantText += String(event.token);
+          if (event.type === 'finish' && event.message) finishMessage = String(event.message);
+          if (event.type === 'rescan') {
+            console.log(`[FA7 OS] Task modified disk. Rescanning ${event.path}...`);
+            if (typeof indexer.scan === 'function') {
+              await indexer.scan();
+            }
+          }
+          writeJsonLine(res, wrapEvent(event));
+        }
+      });
+      paused = !!result?.paused;
+    } catch (e) {
+      if (!missionAborted) {
+        console.error('[FA7 OS] Mission Loop Error:', e);
+        writeJsonLine(res, wrapEvent({ type: 'error', message: e.message }));
+      }
+    }
+
+    if (!missionAborted && !paused) {
+      writeJsonLine(res, wrapEvent({ type: 'done', done: true, message: finishMessage || 'Mission complete' }));
+      if (sessionId) {
+        try {
+          const content = assistantText.trim() || finishMessage || 'Mission completed';
+          await agentSessions.appendMessage(sessionId, {
+            role: 'assistant',
+            content: content.slice(0, 50000),
+            at: new Date().toISOString()
+          });
+          await agentSessions.setStatus(sessionId, 'idle');
+        } catch { /* non-fatal */ }
+      }
+    } else if (paused) {
+      writeJsonLine(res, wrapEvent({ type: 'paused', done: false }));
+    }
+
+    if (!res.writableEnded) res.end();
+  }
+
   app.post('/api/ai/chat', async (req, res) => {
     try {
-      const { messages, stream, model, mode, allowedModels } = req.body;
+      const { messages, stream, model, mode, allowedModels, sessionId } = req.body;
       const lastMessage = messages[messages.length - 1].content;
       const lang = detectLang(lastMessage);
+
+      if (sessionId) {
+        try {
+          await agentSessions.appendMessage(String(sessionId), {
+            role: 'user',
+            content: String(lastMessage),
+            at: new Date().toISOString()
+          });
+          await agentSessions.setStatus(String(sessionId), 'running');
+        } catch { /* non-fatal */ }
+      }
+
+      if (kernel.setAgentMode) kernel.setAgentMode(mode || 'agent');
+
+      if (req.body.useAcp && acpAdapter.config?.active) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        const backendId = req.body.acpBackend || acpAdapter.config.active;
+        const result = await acpAdapter.runStream(backendId, lastMessage, currentProjectRoot, (chunk) => {
+          if (chunk.text) {
+            writeJsonLine(res, {
+              message: { content: chunk.text },
+              agent_event: { type: 'token', token: chunk.text }
+            });
+          }
+        });
+        if (!result.ok && result.stderr) {
+          writeJsonLine(res, { agent_event: { type: 'error', message: result.stderr } });
+        }
+        const acpText = result.stdout || '';
+        if (sessionId && acpText) {
+          try {
+            await agentSessions.appendMessage(String(sessionId), {
+              role: 'assistant',
+              content: acpText.slice(0, 50000),
+              at: new Date().toISOString()
+            });
+            await agentSessions.setStatus(String(sessionId), 'idle');
+          } catch { /* non-fatal */ }
+        }
+        writeJsonLine(res, { message: { content: '' }, agent_event: { type: 'done', done: true } });
+        return res.end();
+      }
+
+      const fast = tryFastPath(lastMessage, {
+        projectRoot: currentProjectRoot,
+        models: await llmGateway.listModels().catch(() => [])
+      });
+      if (fast) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        writeJsonLine(res, {
+          message: { content: fast.content },
+          agent_event: { type: 'done', message: `Fast-path: ${fast.type}`, done: true }
+        });
+        await finalizeAgentSession(sessionId, fast.content);
+        return res.end();
+      }
+
+      if (mode === 'gather' && currentProjectRoot) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        const gather = new GatherMode(kernel, indexer, llmGateway);
+        const context = await gather.gather(lastMessage, {
+          onEvent: (type, data) => writeJsonLine(res, { message: { content: '' }, agent_event: { type, ...data } })
+        });
+        writeJsonLine(res, {
+          message: { content: context.slice(0, 12000) },
+          agent_event: { type: 'done', message: 'Gather complete', done: true }
+        });
+        await finalizeAgentSession(sessionId, context.slice(0, 12000));
+        return res.end();
+      }
 
       // Hard fast-path for short greetings to avoid accidental long generations.
       if (isSimpleGreeting(lastMessage)) {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
+        const greetingText = 'Hi 👋 I am here. Tell me exactly what you want and I will handle it step by step.';
         writeJsonLine(res, {
-          message: {
-            content:
-              'Hi 👋 I am here. Tell me exactly what you want and I will handle it step by step.'
-          },
+          message: { content: greetingText },
           agent_event: { type: 'done', message: 'Greeting handled directly.', done: true }
         });
+        await finalizeAgentSession(sessionId, greetingText);
         return res.end();
       }
 
@@ -1480,6 +3551,8 @@ app.get('/api/ai/system-stats', (req, res) => {
       // Override intent if mode is explicitly an autonomous one
       if (mode === 'plan' || mode === 'debug') {
           intent = 'mission';
+      } else if (mode === 'agent' && currentProjectRoot && !isSimpleGreeting(lastMessage)) {
+          intent = 'mission';
       } else if (mode === 'ask') {
           intent = 'chat';
       }
@@ -1487,47 +3560,85 @@ app.get('/api/ai/system-stats', (req, res) => {
       console.log(`[FA7 OS] Intent for "${lastMessage.substring(0, 30)}...": ${intent} (Mode: ${mode || 'default'})`);
 
       if (intent === 'mission') {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          
           try {
               const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
-              await kernel.executeAutonomousLoop(lastMessage, { 
+              await streamMissionLoop(res, lastMessage, {
+                  mode: mode || 'agent',
                   modeInstructions: systemPrompt,
-                  onEvent: async (event) => {
-                      if (event.type === 'rescan') {
-                          console.log(`[FA7 OS] Task modified disk. Rescanning ${event.path}...`);
-                          if (typeof indexer.scan === 'function') {
-                              await indexer.scan();
-                          }
-                      }
-                      writeJsonLine(res, { message: { content: '' }, agent_event: event });
-                  }
+                  sessionId,
+                  wrapEvent: (event) => ({ message: { content: '' }, agent_event: event })
               });
           } catch (e) {
               console.error("[FA7 OS] Mission Loop Error:", e);
-              writeJsonLine(res, {
-                message: { content: '' },
-                agent_event: { type: 'error', message: e.message }
-              });
+              if (!res.headersSent) {
+                res.status(500).json({ error: e.message });
+              }
           }
-          
-          return res.end();
+          return;
       }
 
       const chatPayload = { ...req.body };
+      let compactionNote = null;
+      if (Array.isArray(chatPayload.messages)) {
+        const compacted = compactMessages(chatPayload.messages, { maxTokens: 14000, keepRecent: 8 });
+        if (compacted.compacted) {
+          chatPayload.messages = compacted.messages;
+          compactionNote = `Context compacted (${compacted.removed} older messages summarized).`;
+          if (compacted.removed >= 4 && llmGateway?.generate) {
+            try {
+              const llmCompacted = await compactWithLlm(
+                chatPayload.messages,
+                (opts) => llmGateway.generate(opts),
+                { maxTokens: 14000, keepRecent: 8 }
+              );
+              if (llmCompacted.compacted) {
+                chatPayload.messages = llmCompacted.messages;
+                compactionNote = `LLM-compacted (${llmCompacted.removed || compacted.removed} messages).`;
+              }
+            } catch { /* fall back to rule-based summary */ }
+          }
+        }
+      }
       if (Array.isArray(chatPayload.messages)) {
         const incoming = [...chatPayload.messages];
         const friendly = buildFriendlyChatSystemPrompt(lang);
         const firstSys = incoming.findIndex((m) => m && m.role === 'system');
+        let extraContext = '';
+        if (currentProjectRoot) {
+          try {
+            const allRules = await loadRules(currentProjectRoot);
+            const activeFile = String(req.body?.activeFile || req.query?.activeFile || '');
+            const rules = selectRulesForContext(allRules, { activeFile, query: lastMessage });
+            const skills = await loadSkills(currentProjectRoot);
+            const matched = matchSkillsForQuery(skills, lastMessage);
+            extraContext = [buildRulesPrompt(rules), buildSkillsPrompt(matched)].filter(Boolean).join('\n\n');
+            if (indexer.getRepoMap) {
+              extraContext += '\n\n' + indexer.getRepoMap(lastMessage, { maxChars: 8000 });
+            }
+            if (lastMessage.length > 20) {
+              const hybrid = await indexer.hybridSearch(lastMessage, 5);
+              const vi = getVectorIndex();
+              const fts = getFtsIndex();
+              if (hybrid.merged?.length) {
+                extraContext += '\n\n## Hybrid codebase search\n' + hybrid.merged.map((h) =>
+                  `### ${h.path} (${h.score.toFixed(2)})\n${h.text || ''}`).join('\n\n');
+              } else if (hybrid.vector?.length && vi) {
+                extraContext += '\n\n' + vi.formatForContext(hybrid.vector);
+              } else if (hybrid.fts?.length && fts) {
+                extraContext += '\n\n' + fts.formatForContext(hybrid.fts);
+              }
+            }
+          } catch {
+            /* non-fatal */
+          }
+        }
         if (firstSys >= 0) {
           /** One merged system block so Ollama/local models do not ignore the IDE workspace prompt. */
-          const merged = `${friendly}\n\n---\n${String(incoming[firstSys].content || '')}`;
+          const merged = `${friendly}\n\n---\n${String(incoming[firstSys].content || '')}${extraContext ? '\n\n' + extraContext : ''}`;
           incoming[firstSys] = { ...incoming[firstSys], content: merged };
           chatPayload.messages = incoming;
         } else {
-          chatPayload.messages = [{ role: 'system', content: friendly }, ...incoming];
+          chatPayload.messages = [{ role: 'system', content: friendly + (extraContext ? '\n\n' + extraContext : '') }, ...incoming];
         }
       }
 
@@ -1536,13 +3647,44 @@ app.get('/api/ai/system-stats', (req, res) => {
       let response = null;
       let attemptError = null;
 
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      let chatAborted = false;
+      const streamId = streamRegistry.register(res, () => { chatAborted = true; });
+      res.setHeader('X-Stream-Id', streamId);
+
+      if (mode === 'agent' && lastMessage.length > 80 && currentProjectRoot) {
+        try {
+          const subRunner = new SubagentRunner(kernel);
+          const repoCtx = indexer.getRepoMap ? indexer.getRepoMap(lastMessage, { maxChars: 4000 }) : '';
+          const subFindings = await subRunner.runParallel(lastMessage, repoCtx, {
+            count: 2,
+            onEvent: (ev) => writeJsonLine(res, { message: { content: '' }, agent_event: ev })
+          });
+          if (subFindings) {
+            const incoming = [...(chatPayload.messages || [])];
+            const sysIdx = incoming.findIndex((m) => m && m.role === 'system');
+            const block = '\n\n## Subagent Research\n' + subFindings;
+            if (sysIdx >= 0) {
+              incoming[sysIdx] = { ...incoming[sysIdx], content: String(incoming[sysIdx].content || '') + block };
+            } else {
+              incoming.unshift({ role: 'system', content: block });
+            }
+            chatPayload.messages = incoming;
+          }
+        } catch (e) {
+          writeJsonLine(res, {
+            message: { content: '' },
+            agent_event: { type: 'status', message: `Subagents skipped: ${e.message}` }
+          });
+        }
+      }
+
       const tryChat = async (mName) => {
         console.log(`[FA7 OS] Chat Route Invoking Model: ${mName}`);
         const finalPayload = { ...chatPayload, model: String(mName).trim() };
-        return await axios.post(`${ollamaHttp()}/api/chat`, finalPayload, {
-          responseType: 'stream',
-          timeout: 45000 // reasonable timeout for network vs connection refused
-        });
+        return await llmGateway.chatStreamCompat(finalPayload, { role: mode || 'chat', timeout: 120000 });
       };
 
       try {
@@ -1564,9 +3706,12 @@ app.get('/api/ai/system-stats', (req, res) => {
         }
       }
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
+      if (compactionNote) {
+        writeJsonLine(res, {
+          message: { content: '' },
+          agent_event: { type: 'status', message: compactionNote }
+        });
+      }
 
       if (!response) {
          writeJsonLine(res, { message: { content: '' }, agent_event: { type: 'error', message: `Model Connection Error. All selected models failed. (Last: ${attemptError})` } });
@@ -1583,6 +3728,18 @@ app.get('/api/ai/system-stats', (req, res) => {
       let buffer = '';
       let sawDone = false;
       let streamedChars = 0;
+      let assistantStreamText = '';
+      const persistAssistant = async () => {
+        if (!sessionId || !assistantStreamText.trim()) return;
+        try {
+          await agentSessions.appendMessage(String(sessionId), {
+            role: 'assistant',
+            content: assistantStreamText.slice(0, 50000),
+            at: new Date().toISOString()
+          });
+          await agentSessions.setStatus(String(sessionId), 'idle');
+        } catch { /* non-fatal */ }
+      };
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
@@ -1594,6 +3751,7 @@ app.get('/api/ai/system-stats', (req, res) => {
             const parsed = JSON.parse(trimmed);
             const content = sanitizeText(parsed?.message?.content, sanitizeText(parsed?.response, ''));
             streamedChars += content.length;
+            if (content) assistantStreamText += content;
             const done = !!parsed?.done;
             if (done) sawDone = true;
             writeJsonLine(res, {
@@ -1612,7 +3770,8 @@ app.get('/api/ai/system-stats', (req, res) => {
                 agent_event: { type: 'done', message: 'Output truncated for safety.', done: true }
               });
               try { response.data.destroy(); } catch {}
-              return res.end();
+              void persistAssistant().finally(() => res.end());
+              return;
             }
           } catch {
             writeJsonLine(res, {
@@ -1629,14 +3788,14 @@ app.get('/api/ai/system-stats', (req, res) => {
             agent_event: { type: 'done', message: 'Model stream ended.', done: true }
           });
         }
-        res.end();
+        void persistAssistant().finally(() => res.end());
       });
       response.data.on('error', (e) => {
         writeJsonLine(res, {
           message: { content: '' },
           agent_event: { type: 'error', message: sanitizeText(e?.message, 'Model stream error.') }
         });
-        res.end();
+        void persistAssistant().finally(() => res.end());
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -1785,6 +3944,27 @@ app.get('/api/ai/system-stats', (req, res) => {
         }
       }
 
+      try {
+        const gatewayModels = await llmGateway.listModels();
+        const existing = new Set(models.map((m) => m.name));
+        for (const gm of gatewayModels) {
+          if (gm.provider === 'ollama' || existing.has(gm.name)) continue;
+          models.push({
+            name: gm.name,
+            label: gm.label || gm.name,
+            installed: true,
+            available_online: true,
+            chat_online: null,
+            chat_state: 'online',
+            online_reason: '',
+            size: null,
+            parameter_size: '',
+            source: gm.source || 'gateway'
+          });
+          existing.add(gm.name);
+        }
+      } catch { /* gateway optional */ }
+
       if (runProbe) {
         const concurrency = 4;
         let idx = 0;
@@ -1844,18 +4024,8 @@ app.get('/api/ai/system-stats', (req, res) => {
       const { goal, projectName } = req.body;
       const finalProjectName = projectName || `aivon-app-${Date.now().toString().slice(-4)}`;
       console.log(`[FA7 OS] Starting autonomous goal for ${finalProjectName}: ${goal}`);
-      
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
 
-      await kernel.executeAutonomousLoop(goal, { 
-          projectName: finalProjectName,
-          onEvent: (event) => {
-              writeJsonLine(res, { agent_event: event });
-          }
-      });
-      res.end();
+      await streamMissionLoop(res, goal, { projectName: finalProjectName });
     } catch (err) {
       if (!res.headersSent) {
           res.status(500).json({ error: err.message });
@@ -2290,7 +4460,9 @@ app.get('/api/ai/system-stats', (req, res) => {
       saveRecentProject(projectPath, name);
       
       indexer = new Indexer(currentProjectRoot);
+      indexerRef = indexer;
       kernel = new AgentKernel(currentProjectRoot, ollamaHttp(), indexer);
+      agentKernelRef = kernel;
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       companionShellPty.updateDefaultCwd(currentProjectRoot);
       
@@ -2318,7 +4490,9 @@ app.get('/api/ai/system-stats', (req, res) => {
       currentProjectRoot = path.resolve(newPath);
       saveConfig();
       indexer = new Indexer(currentProjectRoot);
+      indexerRef = indexer;
       kernel = new AgentKernel(currentProjectRoot, ollamaHttp(), indexer);
+      agentKernelRef = kernel;
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       companionShellPty.updateDefaultCwd(currentProjectRoot);
       initServices();
@@ -2330,6 +4504,18 @@ app.get('/api/ai/system-stats', (req, res) => {
   });
 
   await loadFa7Plugins();
+
+  // Packaged Electron loads the UI from companion so /assets/* resolve correctly (file:// breaks absolute paths).
+  if (process.env.FA7_ELECTRON_MODE) {
+    const distDir = path.join(__dirname, 'dist');
+    app.use(express.static(distDir, { index: false }));
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(distDir, 'index.html'), (err) => {
+        if (err) next(err);
+      });
+    });
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`FA7 OS companion on http://localhost:${PORT}`);

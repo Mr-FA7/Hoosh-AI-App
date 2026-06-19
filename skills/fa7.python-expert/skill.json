@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 1,
+  "id": "fa7.python-expert",
+  "name": "Python Expert",
+  "version": "1.0.0",
+  "author": { "name": "FA7 Labs", "verified": true },
+  "category": "coding",
+  "summary": "Expert Python development: idiomatic code, packaging, testing with pytest, and debugging.",
+  "description": "Turns Hoosh into a Python specialist — writes idiomatic, typed Python, sets up virtualenvs and requirements, writes pytest suites, and debugs tracebacks. Routes all shell/file actions through the Tool Layer.",
+  "systemPrompt": "./prompts/system.md",
+  "recommendedModels": [
+    { "role": "plan", "provider": "ollama", "model": "qwen2.5-coder" },
+    { "role": "completion", "provider": "ollama", "model": "qwen2.5-coder" }
+  ],
+  "knowledgeBase": [
+    { "source": "https://docs.python.org/3/", "type": "docs", "refresh": "weekly" }
+  ],
+  "subAgents": ["coding", "debug", "test"],
+  "memoryScope": "project",
+  "eval": { "tests": "./eval/*.json", "passThreshold": 0.8 },
+  "permissions": {
+    "filesystem": "workspace-only",
+    "shell": { "allowlist": ["python", "python3", "pip", "pip3", "pytest"] },
+    "network": ["docs.python.org", "pypi.org"],
+    "mcp": [],
+    "secrets": []
+  },
+  "pricing": { "model": "free" }
+}

@@ -1,0 +1,9 @@
+{
+  "scopeName": "text.html.markdown",
+  "patterns": [
+    { "name": "markup.heading.markdown", "match": "^#{1,6}\\s+.+$" },
+    { "name": "markup.bold.markdown", "match": "\\*\\*[^*]+\\*\\*" },
+    { "name": "markup.inline.raw.markdown", "match": "`[^`]+`" },
+    { "name": "markup.fenced_code.block.markdown", "begin": "^```", "end": "^```" }
+  ]
+}

@@ -1,0 +1,1487 @@
+[
+  {
+    "id": "zero_one",
+    "label": "01.AI API",
+    "type": "openai",
+    "baseUrl": "https://api.01.ai/v1",
+    "models": [
+      "yi-large-preview"
+    ]
+  },
+  {
+    "id": "yi",
+    "label": "01.AI Yi",
+    "type": "openai",
+    "baseUrl": "https://api.lingyiwanwu.com/v1",
+    "models": [
+      "yi-large"
+    ]
+  },
+  {
+    "id": "aimlapi",
+    "label": "AI/ML API",
+    "type": "openai",
+    "baseUrl": "https://api.aimlapi.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "ai21",
+    "label": "AI21",
+    "type": "openai",
+    "baseUrl": "https://api.ai21.com/studio/v1",
+    "models": [
+      "jamba-1.5-large"
+    ]
+  },
+  {
+    "id": "aihubmix",
+    "label": "AIHubMix",
+    "type": "openai",
+    "baseUrl": "https://aihubmix.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "aleph_alpha",
+    "label": "Aleph Alpha",
+    "type": "openai",
+    "baseUrl": "https://api.aleph-alpha.com",
+    "models": [
+      "luminous-extended"
+    ]
+  },
+  {
+    "id": "dashscope",
+    "label": "Alibaba DashScope",
+    "type": "openai",
+    "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "models": [
+      "qwen-plus",
+      "qwen-turbo"
+    ]
+  },
+  {
+    "id": "anthropic",
+    "label": "Anthropic",
+    "type": "anthropic",
+    "baseUrl": "https://api.anthropic.com",
+    "models": [
+      "claude-sonnet-4-20250514",
+      "claude-3-5-haiku-20241022"
+    ]
+  },
+  {
+    "id": "anyscale",
+    "label": "Anyscale",
+    "type": "openai",
+    "baseUrl": "https://api.endpoints.anyscale.com/v1",
+    "models": [
+      "meta-llama/Llama-3-70b-chat-hf"
+    ]
+  },
+  {
+    "id": "bedrock",
+    "label": "AWS Bedrock (proxy)",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "anthropic.claude-3-sonnet"
+    ]
+  },
+  {
+    "id": "sagemaker",
+    "label": "AWS SageMaker",
+    "type": "openai",
+    "baseUrl": "https://runtime.sagemaker.us-east-1.amazonaws.com",
+    "models": [
+      "meta-llama3-70b-instruct"
+    ]
+  },
+  {
+    "id": "azure_ai",
+    "label": "Azure AI Foundry",
+    "type": "openai",
+    "baseUrl": "https://YOUR_RESOURCE.services.ai.azure.com/models",
+    "models": [
+      "gpt-4o"
+    ]
+  },
+  {
+    "id": "azure_mistral",
+    "label": "Azure Mistral",
+    "type": "openai",
+    "baseUrl": "https://YOUR_RESOURCE.services.ai.azure.com/models",
+    "models": [
+      "mistral-large"
+    ]
+  },
+  {
+    "id": "azure",
+    "label": "Azure OpenAI",
+    "type": "openai",
+    "baseUrl": "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT",
+    "models": [
+      "gpt-4o"
+    ]
+  },
+  {
+    "id": "baichuan",
+    "label": "Baichuan",
+    "type": "openai",
+    "baseUrl": "https://api.baichuan-ai.com/v1",
+    "models": [
+      "Baichuan4-Turbo"
+    ]
+  },
+  {
+    "id": "qianfan",
+    "label": "Baidu Qianfan",
+    "type": "openai",
+    "baseUrl": "https://qianfan.baidubce.com/v2",
+    "models": [
+      "ernie-4.0-8k"
+    ]
+  },
+  {
+    "id": "baseten",
+    "label": "Baseten",
+    "type": "openai",
+    "baseUrl": "https://model-YOUR_MODEL.api.baseten.co/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "bedrock_anthropic",
+    "label": "Bedrock Anthropic",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "anthropic.claude-3-5-sonnet"
+    ]
+  },
+  {
+    "id": "bedrock_meta",
+    "label": "Bedrock Meta",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "meta.llama3-70b-instruct-v1:0"
+    ]
+  },
+  {
+    "id": "centml",
+    "label": "CentML",
+    "type": "openai",
+    "baseUrl": "https://api.centml.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "cerebras",
+    "label": "Cerebras",
+    "type": "openai",
+    "baseUrl": "https://api.cerebras.ai/v1",
+    "models": [
+      "llama-3.3-70b"
+    ]
+  },
+  {
+    "id": "chutes",
+    "label": "Chutes",
+    "type": "openai",
+    "baseUrl": "https://api.chutes.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "clarifai",
+    "label": "Clarifai",
+    "type": "openai",
+    "baseUrl": "https://api.clarifai.com/v2/ext/openai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "cloudflare",
+    "label": "Cloudflare Workers AI",
+    "type": "openai",
+    "baseUrl": "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT/ai/v1",
+    "models": [
+      "@cf/meta/llama-3-8b-instruct"
+    ]
+  },
+  {
+    "id": "cloudflare_workers",
+    "label": "Cloudflare Workers AI",
+    "type": "openai",
+    "baseUrl": "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT/ai/v1",
+    "models": [
+      "@cf/meta/llama-3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "cloudrift",
+    "label": "CloudRift",
+    "type": "openai",
+    "baseUrl": "https://api.cloudrift.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "codellama_server",
+    "label": "Code Llama Server",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "codellama"
+    ]
+  },
+  {
+    "id": "cohere",
+    "label": "Cohere",
+    "type": "openai",
+    "baseUrl": "https://api.cohere.com/v2",
+    "models": [
+      "command-r-plus"
+    ]
+  },
+  {
+    "id": "cometapi",
+    "label": "CometAPI",
+    "type": "openai",
+    "baseUrl": "https://api.cometapi.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "crusoe",
+    "label": "Crusoe Cloud",
+    "type": "openai",
+    "baseUrl": "https://api.crusoecloud.com/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "custom_openai",
+    "label": "Custom OpenAI Endpoint",
+    "type": "openai",
+    "baseUrl": "https://your-api.example.com/v1",
+    "models": [
+      "custom-model"
+    ]
+  },
+  {
+    "id": "databricks",
+    "label": "Databricks",
+    "type": "openai",
+    "baseUrl": "https://YOUR_WORKSPACE.cloud.databricks.com/serving-endpoints",
+    "models": [
+      "databricks-meta-llama-3-1-70b-instruct"
+    ]
+  },
+  {
+    "id": "datadog_llm",
+    "label": "Datadog LLM Observability Proxy",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "deepbricks",
+    "label": "DeepBricks",
+    "type": "openai",
+    "baseUrl": "https://api.deepbricks.ai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "deepinfra",
+    "label": "DeepInfra",
+    "type": "openai",
+    "baseUrl": "https://api.deepinfra.com/v1/openai",
+    "models": [
+      "meta-llama/Llama-3.3-70B-Instruct"
+    ]
+  },
+  {
+    "id": "deepseek",
+    "label": "DeepSeek",
+    "type": "openai",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "models": [
+      "deepseek-chat",
+      "deepseek-coder"
+    ]
+  },
+  {
+    "id": "deepseek_azure",
+    "label": "DeepSeek Azure",
+    "type": "openai",
+    "baseUrl": "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/deepseek",
+    "models": [
+      "deepseek-r1"
+    ]
+  },
+  {
+    "id": "gradient",
+    "label": "DigitalOcean Gradient",
+    "type": "openai",
+    "baseUrl": "https://api.gradient.ai/api/v1",
+    "models": [
+      "llama3-8b-instruct"
+    ]
+  },
+  {
+    "id": "edenai",
+    "label": "Eden AI",
+    "type": "openai",
+    "baseUrl": "https://api.edenai.run/v2",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "empower",
+    "label": "Empower AI",
+    "type": "openai",
+    "baseUrl": "https://api.empower.dev/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "enfer",
+    "label": "Enfer AI",
+    "type": "openai",
+    "baseUrl": "https://api.enfer.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "fal",
+    "label": "fal.ai",
+    "type": "openai",
+    "baseUrl": "https://fal.run/fal-ai/any-llm/openai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "featherless",
+    "label": "Featherless AI",
+    "type": "openai",
+    "baseUrl": "https://api.featherless.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "fireworks",
+    "label": "Fireworks AI",
+    "type": "openai",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "models": [
+      "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    ]
+  },
+  {
+    "id": "fireworks_ai",
+    "label": "Fireworks AI (alias)",
+    "type": "openai",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "models": [
+      "accounts/fireworks/models/llama-v3p1-405b-instruct"
+    ]
+  },
+  {
+    "id": "fireworks_deepseek",
+    "label": "Fireworks DeepSeek",
+    "type": "openai",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "models": [
+      "accounts/fireworks/models/deepseek-r1"
+    ]
+  },
+  {
+    "id": "friendliai",
+    "label": "FriendliAI",
+    "type": "openai",
+    "baseUrl": "https://api.friendli.ai/serverless/v1",
+    "models": [
+      "meta-llama-3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "galadriel",
+    "label": "Galadriel",
+    "type": "openai",
+    "baseUrl": "https://api.galadriel.com/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "gemini_vertex",
+    "label": "Gemini Vertex",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "gemini-2.0-flash"
+    ]
+  },
+  {
+    "id": "gitee_ai",
+    "label": "Gitee AI",
+    "type": "openai",
+    "baseUrl": "https://ai.gitee.com/v1",
+    "models": [
+      "Qwen2.5-72B-Instruct"
+    ]
+  },
+  {
+    "id": "copilot_proxy",
+    "label": "GitHub Copilot Proxy",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4141/v1",
+    "models": [
+      "gpt-4o"
+    ]
+  },
+  {
+    "id": "github_models",
+    "label": "GitHub Models",
+    "type": "openai",
+    "baseUrl": "https://models.inference.ai.azure.com",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "google",
+    "label": "Google AI Studio",
+    "type": "openai",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "models": [
+      "gemini-2.0-flash"
+    ]
+  },
+  {
+    "id": "palm",
+    "label": "Google PaLM (legacy proxy)",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "text-bison"
+    ]
+  },
+  {
+    "id": "vertex",
+    "label": "Google Vertex (proxy)",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "id": "gradient_ai",
+    "label": "Gradient (Paperspace)",
+    "type": "openai",
+    "baseUrl": "https://api.paperspacegradient.com/v1",
+    "models": [
+      "llama3-8b-instruct"
+    ]
+  },
+  {
+    "id": "groq",
+    "label": "Groq",
+    "type": "openai",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "models": [
+      "llama-3.3-70b-versatile"
+    ]
+  },
+  {
+    "id": "groq_cloud",
+    "label": "Groq Cloud",
+    "type": "openai",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "models": [
+      "mixtral-8x7b-32768"
+    ]
+  },
+  {
+    "id": "groq_llama",
+    "label": "Groq Llama",
+    "type": "openai",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "models": [
+      "llama-3.1-70b-versatile"
+    ]
+  },
+  {
+    "id": "helicone",
+    "label": "Helicone Gateway",
+    "type": "openai",
+    "baseUrl": "https://oai.hconeai.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "hf_inference",
+    "label": "HF Inference Providers",
+    "type": "openai",
+    "baseUrl": "https://router.huggingface.co/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "huggingface",
+    "label": "Hugging Face Inference",
+    "type": "openai",
+    "baseUrl": "https://api-inference.huggingface.co/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "huggingface_tgi",
+    "label": "HuggingFace TGI",
+    "type": "openai",
+    "baseUrl": "https://api-inference.huggingface.co/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "hyperbolic",
+    "label": "Hyperbolic",
+    "type": "openai",
+    "baseUrl": "https://api.hyperbolic.xyz/v1",
+    "models": [
+      "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "watsonx",
+    "label": "IBM watsonx",
+    "type": "openai",
+    "baseUrl": "https://us-south.ml.cloud.ibm.com/ml/v1",
+    "models": [
+      "ibm/granite-13b-chat-v2"
+    ]
+  },
+  {
+    "id": "spark",
+    "label": "iFlytek Spark",
+    "type": "openai",
+    "baseUrl": "https://spark-api-open.xf-yun.com/v1",
+    "models": [
+      "generalv3.5"
+    ]
+  },
+  {
+    "id": "inference",
+    "label": "Inference Endpoints",
+    "type": "openai",
+    "baseUrl": "https://api.endpoints.huggingface.cloud/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "inference_net",
+    "label": "Inference.net",
+    "type": "openai",
+    "baseUrl": "https://api.inference.net/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "internlm",
+    "label": "InternLM",
+    "type": "openai",
+    "baseUrl": "https://internlm-chat.intern-ai.org.cn/puyu/api/v1",
+    "models": [
+      "internlm2_5-20b-chat"
+    ]
+  },
+  {
+    "id": "io_net",
+    "label": "io.net",
+    "type": "openai",
+    "baseUrl": "https://api.io.net/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "jina",
+    "label": "Jina AI",
+    "type": "openai",
+    "baseUrl": "https://api.jina.ai/v1",
+    "models": [
+      "jina-embeddings-v3"
+    ]
+  },
+  {
+    "id": "jina_chat",
+    "label": "Jina Chat",
+    "type": "openai",
+    "baseUrl": "https://api.jina.ai/v1",
+    "models": [
+      "jina-chat"
+    ]
+  },
+  {
+    "id": "kluster",
+    "label": "Kluster AI",
+    "type": "openai",
+    "baseUrl": "https://api.kluster.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "klusterai",
+    "label": "Kluster.ai",
+    "type": "openai",
+    "baseUrl": "https://api.kluster.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "kserve",
+    "label": "KServe",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "lambda",
+    "label": "Lambda Labs",
+    "type": "openai",
+    "baseUrl": "https://api.lambdalabs.com/v1",
+    "models": [
+      "llama3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "langdb",
+    "label": "LangDB",
+    "type": "openai",
+    "baseUrl": "https://api.langdb.ai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "lepton",
+    "label": "Lepton AI",
+    "type": "openai",
+    "baseUrl": "https://api.lepton.ai/v1",
+    "models": [
+      "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "litellm_proxy",
+    "label": "LiteLLM Proxy",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4000/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "llamacpp",
+    "label": "llama.cpp server",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "llamafile",
+    "label": "Llamafile",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "llm_gateway",
+    "label": "LLM Gateway",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:4001/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "lmstudio",
+    "label": "LM Studio",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:1234/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "localai",
+    "label": "LocalAI",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "mancer",
+    "label": "Mancer",
+    "type": "openai",
+    "baseUrl": "https://api.mancer.tech/v1",
+    "models": [
+      "mytholite"
+    ]
+  },
+  {
+    "id": "meta_llama_api",
+    "label": "Meta Llama API",
+    "type": "openai",
+    "baseUrl": "https://api.llama-api.com",
+    "models": [
+      "llama3.1-70b"
+    ]
+  },
+  {
+    "id": "minimax",
+    "label": "MiniMax",
+    "type": "openai",
+    "baseUrl": "https://api.minimax.chat/v1",
+    "models": [
+      "abab6.5s-chat"
+    ]
+  },
+  {
+    "id": "mistral",
+    "label": "Mistral AI",
+    "type": "openai",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "models": [
+      "mistral-large-latest",
+      "codestral-latest"
+    ]
+  },
+  {
+    "id": "mistral_azure",
+    "label": "Mistral on Azure",
+    "type": "openai",
+    "baseUrl": "https://YOUR_RESOURCE.services.ai.azure.com/models",
+    "models": [
+      "mistral-large-latest"
+    ]
+  },
+  {
+    "id": "mlx_server",
+    "label": "MLX Server",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "modal",
+    "label": "Modal",
+    "type": "openai",
+    "baseUrl": "https://api.modal.com/openai/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "modelscope",
+    "label": "ModelScope",
+    "type": "openai",
+    "baseUrl": "https://api-inference.modelscope.cn/v1",
+    "models": [
+      "Qwen/Qwen2.5-72B-Instruct"
+    ]
+  },
+  {
+    "id": "monsterapi",
+    "label": "MonsterAPI",
+    "type": "openai",
+    "baseUrl": "https://api.monsterapi.ai/v1",
+    "models": [
+      "meta-llama/Llama-3-70b-chat-hf"
+    ]
+  },
+  {
+    "id": "moonshot",
+    "label": "Moonshot (Kimi)",
+    "type": "openai",
+    "baseUrl": "https://api.moonshot.cn/v1",
+    "models": [
+      "moonshot-v1-8k"
+    ]
+  },
+  {
+    "id": "moonshot_intl",
+    "label": "Moonshot International",
+    "type": "openai",
+    "baseUrl": "https://api.moonshot.ai/v1",
+    "models": [
+      "moonshot-v1-8k"
+    ]
+  },
+  {
+    "id": "ncompass",
+    "label": "nCompass",
+    "type": "openai",
+    "baseUrl": "https://api.ncompass.tech/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "nebius",
+    "label": "Nebius",
+    "type": "openai",
+    "baseUrl": "https://api.studio.nebius.ai/v1",
+    "models": [
+      "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "nebius_studio",
+    "label": "Nebius Studio",
+    "type": "openai",
+    "baseUrl": "https://api.studio.nebius.ai/v1",
+    "models": [
+      "meta-llama/Meta-Llama-3.1-405B-Instruct"
+    ]
+  },
+  {
+    "id": "nineteen",
+    "label": "Nineteen AI",
+    "type": "openai",
+    "baseUrl": "https://api.nineteen.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "nlp_cloud",
+    "label": "NLP Cloud",
+    "type": "openai",
+    "baseUrl": "https://api.nlpcloud.io/v1/gpu",
+    "models": [
+      "chatdolphin"
+    ]
+  },
+  {
+    "id": "nlpcloud_gpu",
+    "label": "NLP Cloud GPU",
+    "type": "openai",
+    "baseUrl": "https://api.nlpcloud.io/v1/gpu",
+    "models": [
+      "chatdolphin"
+    ]
+  },
+  {
+    "id": "nousresearch",
+    "label": "Nous Research",
+    "type": "openai",
+    "baseUrl": "https://api.nousresearch.com/v1",
+    "models": [
+      "hermes-3-llama-3.1-70b"
+    ]
+  },
+  {
+    "id": "novita",
+    "label": "Novita AI",
+    "type": "openai",
+    "baseUrl": "https://api.novita.ai/v3/openai",
+    "models": [
+      "meta-llama/llama-3-70b-instruct"
+    ]
+  },
+  {
+    "id": "nscale",
+    "label": "Nscale",
+    "type": "openai",
+    "baseUrl": "https://api.nscale.com/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "triton",
+    "label": "NVIDIA Triton",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "models": [
+      "ensemble"
+    ]
+  },
+  {
+    "id": "octoai",
+    "label": "OctoAI",
+    "type": "openai",
+    "baseUrl": "https://text.octoai.run/v1",
+    "models": [
+      "meta-llama-3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "ollama",
+    "label": "Ollama",
+    "type": "ollama",
+    "baseUrl": "http://127.0.0.1:11434",
+    "models": [
+      "mistral",
+      "qwen2.5:32b"
+    ]
+  },
+  {
+    "id": "ollama_cloud",
+    "label": "Ollama Cloud",
+    "type": "ollama",
+    "baseUrl": "https://ollama.com",
+    "models": [
+      "llama3.2"
+    ]
+  },
+  {
+    "id": "textgen_openai",
+    "label": "Oobabooga OpenAI",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:5000/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "openai",
+    "label": "OpenAI",
+    "type": "openai",
+    "baseUrl": "https://api.openai.com/v1",
+    "models": [
+      "gpt-4o-mini",
+      "gpt-4o",
+      "o3-mini"
+    ]
+  },
+  {
+    "id": "openai_compatible",
+    "label": "OpenAI Compatible (custom)",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "models": [
+      "custom-model"
+    ]
+  },
+  {
+    "id": "openai_org",
+    "label": "OpenAI Organization",
+    "type": "openai",
+    "baseUrl": "https://api.openai.com/v1",
+    "models": [
+      "gpt-4.1-mini"
+    ]
+  },
+  {
+    "id": "openpipe",
+    "label": "OpenPipe",
+    "type": "openai",
+    "baseUrl": "https://app.openpipe.ai/api/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "openrouter",
+    "label": "OpenRouter",
+    "type": "openai",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "models": [
+      "openai/gpt-4o-mini",
+      "anthropic/claude-sonnet-4"
+    ]
+  },
+  {
+    "id": "openrouter_free",
+    "label": "OpenRouter Free Tier",
+    "type": "openai",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "models": [
+      "google/gemma-2-9b-it:free"
+    ]
+  },
+  {
+    "id": "oci",
+    "label": "Oracle OCI GenAI",
+    "type": "openai",
+    "baseUrl": "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
+    "models": [
+      "cohere.command-r-plus"
+    ]
+  },
+  {
+    "id": "ovhcloud",
+    "label": "OVHcloud AI",
+    "type": "openai",
+    "baseUrl": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+    "models": [
+      "Meta-Llama-3_1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "parasail",
+    "label": "Parasail",
+    "type": "openai",
+    "baseUrl": "https://api.parasail.io/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "perplexity",
+    "label": "Perplexity",
+    "type": "openai",
+    "baseUrl": "https://api.perplexity.ai",
+    "models": [
+      "sonar",
+      "sonar-pro"
+    ]
+  },
+  {
+    "id": "perplexity_pro",
+    "label": "Perplexity Pro",
+    "type": "openai",
+    "baseUrl": "https://api.perplexity.ai",
+    "models": [
+      "sonar-reasoning-pro"
+    ]
+  },
+  {
+    "id": "petals",
+    "label": "Petals",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "models": [
+      "bigscience/bloom"
+    ]
+  },
+  {
+    "id": "phind",
+    "label": "Phind",
+    "type": "openai",
+    "baseUrl": "https://https.api.phind.com/infer",
+    "models": [
+      "Phind-70B"
+    ]
+  },
+  {
+    "id": "poe",
+    "label": "Poe API",
+    "type": "openai",
+    "baseUrl": "https://api.poe.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "portkey",
+    "label": "Portkey Gateway",
+    "type": "openai",
+    "baseUrl": "https://api.portkey.ai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "predibase",
+    "label": "Predibase",
+    "type": "openai",
+    "baseUrl": "https://serving.app.predibase.com/v1",
+    "models": [
+      "llama-3-8b-instruct"
+    ]
+  },
+  {
+    "id": "predibase_lora",
+    "label": "Predibase LoRA",
+    "type": "openai",
+    "baseUrl": "https://serving.app.predibase.com/v1",
+    "models": [
+      "lora-model"
+    ]
+  },
+  {
+    "id": "publicai",
+    "label": "PublicAI",
+    "type": "openai",
+    "baseUrl": "https://api.publicai.co/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "recursal",
+    "label": "Recursal AI",
+    "type": "openai",
+    "baseUrl": "https://api.recursal.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "reka",
+    "label": "Reka AI",
+    "type": "openai",
+    "baseUrl": "https://api.reka.ai/v1",
+    "models": [
+      "reka-core"
+    ]
+  },
+  {
+    "id": "replicate",
+    "label": "Replicate",
+    "type": "openai",
+    "baseUrl": "https://openai-proxy.replicate.com/v1",
+    "models": [
+      "meta/meta-llama-3-70b-instruct"
+    ]
+  },
+  {
+    "id": "replicate_llama",
+    "label": "Replicate Llama",
+    "type": "openai",
+    "baseUrl": "https://openai-proxy.replicate.com/v1",
+    "models": [
+      "meta/meta-llama-3-8b-instruct"
+    ]
+  },
+  {
+    "id": "runpod",
+    "label": "RunPod Serverless",
+    "type": "openai",
+    "baseUrl": "https://api.runpod.ai/v2",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "sambanova",
+    "label": "SambaNova",
+    "type": "openai",
+    "baseUrl": "https://api.sambanova.ai/v1",
+    "models": [
+      "Meta-Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "sambanova_fast",
+    "label": "SambaNova Fast",
+    "type": "openai",
+    "baseUrl": "https://api.sambanova.ai/v1",
+    "models": [
+      "Meta-Llama-3.1-405B-Instruct"
+    ]
+  },
+  {
+    "id": "scaleway",
+    "label": "Scaleway Generative APIs",
+    "type": "openai",
+    "baseUrl": "https://api.scaleway.ai/v1",
+    "models": [
+      "llama-3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "shuttle",
+    "label": "Shuttle AI",
+    "type": "openai",
+    "baseUrl": "https://api.shuttleai.com/v1",
+    "models": [
+      "shuttle-3"
+    ]
+  },
+  {
+    "id": "siliconflow",
+    "label": "SiliconFlow",
+    "type": "openai",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "models": [
+      "deepseek-ai/DeepSeek-V3"
+    ]
+  },
+  {
+    "id": "siliconflow_intl",
+    "label": "SiliconFlow International",
+    "type": "openai",
+    "baseUrl": "https://api.siliconflow.com/v1",
+    "models": [
+      "deepseek-ai/DeepSeek-V3"
+    ]
+  },
+  {
+    "id": "simplismart",
+    "label": "Simplismart",
+    "type": "openai",
+    "baseUrl": "https://api.simplismart.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "snowflake",
+    "label": "Snowflake Cortex",
+    "type": "openai",
+    "baseUrl": "https://YOUR_ACCOUNT.snowflakecomputing.com/api/v2/cortex",
+    "models": [
+      "mistral-large2"
+    ]
+  },
+  {
+    "id": "stability",
+    "label": "Stability AI",
+    "type": "openai",
+    "baseUrl": "https://api.stability.ai/v1",
+    "models": [
+      "stable-diffusion-xl"
+    ]
+  },
+  {
+    "id": "stepfun",
+    "label": "StepFun",
+    "type": "openai",
+    "baseUrl": "https://api.stepfun.com/v1",
+    "models": [
+      "step-2-16k"
+    ]
+  },
+  {
+    "id": "tabby_api",
+    "label": "Tabby API",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8080/v1",
+    "models": [
+      "StarCoder-1B"
+    ]
+  },
+  {
+    "id": "targon",
+    "label": "Targon",
+    "type": "openai",
+    "baseUrl": "https://api.targon.com/v1",
+    "models": [
+      "llama-3.1-70b-instruct"
+    ]
+  },
+  {
+    "id": "tencent",
+    "label": "Tencent Hunyuan",
+    "type": "openai",
+    "baseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
+    "models": [
+      "hunyuan-pro"
+    ]
+  },
+  {
+    "id": "tensoropera",
+    "label": "TensorOpera",
+    "type": "openai",
+    "baseUrl": "https://api.tensoropera.ai/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "textgen",
+    "label": "text-generation-webui",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:5000/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "theb",
+    "label": "TheB.AI",
+    "type": "openai",
+    "baseUrl": "https://api.theb.ai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "together",
+    "label": "Together AI",
+    "type": "openai",
+    "baseUrl": "https://api.together.xyz/v1",
+    "models": [
+      "meta-llama/Llama-3-70b-chat-hf"
+    ]
+  },
+  {
+    "id": "together_turbo",
+    "label": "Together Turbo",
+    "type": "openai",
+    "baseUrl": "https://api.together.xyz/v1",
+    "models": [
+      "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"
+    ]
+  },
+  {
+    "id": "unify",
+    "label": "Unify",
+    "type": "openai",
+    "baseUrl": "https://api.unify.ai/v0",
+    "models": [
+      "gpt-4o-mini@openai"
+    ]
+  },
+  {
+    "id": "upstage",
+    "label": "Upstage Solar",
+    "type": "openai",
+    "baseUrl": "https://api.upstage.ai/v1",
+    "models": [
+      "solar-pro"
+    ]
+  },
+  {
+    "id": "vercel_ai",
+    "label": "Vercel AI Gateway",
+    "type": "openai",
+    "baseUrl": "https://gateway.ai.cloudflare.com/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "vllm",
+    "label": "vLLM (OpenAI-compatible)",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "models": [
+      "local-model"
+    ]
+  },
+  {
+    "id": "vllm_cluster",
+    "label": "vLLM Cluster",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "models": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ]
+  },
+  {
+    "id": "doubao",
+    "label": "Volcengine Doubao",
+    "type": "openai",
+    "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "models": [
+      "doubao-pro-32k"
+    ]
+  },
+  {
+    "id": "voyage",
+    "label": "Voyage AI",
+    "type": "openai",
+    "baseUrl": "https://api.voyageai.com/v1",
+    "models": [
+      "voyage-3-lite"
+    ]
+  },
+  {
+    "id": "writer",
+    "label": "Writer",
+    "type": "openai",
+    "baseUrl": "https://api.writer.com/v1",
+    "models": [
+      "palmyra-x-004"
+    ]
+  },
+  {
+    "id": "xai",
+    "label": "xAI",
+    "type": "openai",
+    "baseUrl": "https://api.x.ai/v1",
+    "models": [
+      "grok-2-latest"
+    ]
+  },
+  {
+    "id": "xai_grok",
+    "label": "xAI Grok",
+    "type": "openai",
+    "baseUrl": "https://api.x.ai/v1",
+    "models": [
+      "grok-beta"
+    ]
+  },
+  {
+    "id": "xinference",
+    "label": "Xinference",
+    "type": "openai",
+    "baseUrl": "http://127.0.0.1:9997/v1",
+    "models": [
+      "qwen2.5-instruct"
+    ]
+  },
+  {
+    "id": "zai",
+    "label": "Z.AI",
+    "type": "openai",
+    "baseUrl": "https://api.z.ai/v1",
+    "models": [
+      "glm-4-plus"
+    ]
+  },
+  {
+    "id": "zenmux",
+    "label": "ZenMux",
+    "type": "openai",
+    "baseUrl": "https://api.zenmux.ai/v1",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  },
+  {
+    "id": "zhipu",
+    "label": "Zhipu GLM",
+    "type": "openai",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "models": [
+      "glm-4-flash"
+    ]
+  }
+]

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Folder, FileCode, RefreshCw, FolderOpen, Edit3, ChevronRight, FolderInput } from 'lucide-react';
+import { Folder, FileCode, RefreshCw, FolderOpen, Edit3, ChevronRight, FolderInput, FolderPlus, X } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE } from '../apiBase';
 import { useI18n } from '../i18n/LocaleContext';
@@ -14,13 +14,14 @@ interface FileExplorerProps {
   onProjectChange?: (path: string) => void;
 }
 
-type FsEntry = { name: string; path: string; isDirectory: boolean };
+type FsEntry = { name: string; path: string; isDirectory: boolean; workspaceRoot?: boolean };
 
 const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0, activeFile, onFileSelect, onRefresh, onProjectChange }) => {
   const { t } = useI18n();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const [projectInfo, setProjectInfo] = useState<{ path: string, name: string } | null>(null);
+  const [projectInfo, setProjectInfo] = useState<{ path: string; name: string; folders?: Array<{ name: string; path: string }> } | null>(null);
+  const [workspaceFolders, setWorkspaceFolders] = useState<Array<{ name: string; path: string }>>([]);
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [newPath, setNewPath] = useState('');
   /** Relative folder paths (e.g. `src/components`) that are expanded */
@@ -52,6 +53,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
       });
       setProjectInfo(res.data);
       setNewPath(res.data.path);
+      const folders = Array.isArray(res.data.folders) ? res.data.folders : [];
+      setWorkspaceFolders(folders);
     } catch (e) {
       console.error('Failed to fetch project info', e);
     }
@@ -90,6 +93,29 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
       alert(t('explorer.alertPickerFailed') + ' ' + (e.response?.data?.error || e.message));
     }
   };
+
+  const handleAddWorkspaceFolder = async () => {
+    try {
+      const r = await axios.get(`${API_BASE}/dialog/open-folder`);
+      if (!r.data?.ok || r.data.canceled || !r.data.path) return;
+      await axios.post(`${API_BASE}/v3/workspace/folders`, { path: r.data.path });
+      await handleExplorerRefresh();
+    } catch (e: any) {
+      alert(t('explorer.alertAddFolderFailed') + ' ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const handleRemoveWorkspaceFolder = async (folderPath: string) => {
+    if (!folderPath || workspaceFolders.length <= 1) return;
+    try {
+      await axios.delete(`${API_BASE}/v3/workspace/folders`, { data: { path: folderPath } });
+      await handleExplorerRefresh();
+    } catch (e: any) {
+      alert(t('explorer.alertRemoveFolderFailed') + ' ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const primaryFolderPath = workspaceFolders[0]?.path || projectInfo?.path || '';
 
   const cacheRef = useRef(childrenCache);
   cacheRef.current = childrenCache;
@@ -356,6 +382,81 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
             >
               {t('explorer.cancel')}
             </button>
+          </div>
+        )}
+        {projectInfo?.path && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {t('explorer.workspaceFolders')}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddWorkspaceFolder}
+                title={t('explorer.addFolder')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'hsl(var(--accent) / 0.12)',
+                  border: '1px solid hsl(var(--accent) / 0.3)',
+                  borderRadius: 4,
+                  color: 'hsl(var(--accent))',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  cursor: 'pointer'
+                }}
+              >
+                <FolderPlus size={12} /> {t('explorer.addFolder')}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {workspaceFolders.map((folder) => {
+                const isPrimary = folder.path === primaryFolderPath;
+                return (
+                  <div
+                    key={folder.path}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 10,
+                      padding: '4px 6px',
+                      borderRadius: 4,
+                      background: 'hsl(var(--bg-main) / 0.35)',
+                      border: '1px solid hsl(var(--border) / 0.35)'
+                    }}
+                  >
+                    <Folder size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {folder.name}{isPrimary ? ` (${t('explorer.primaryFolder')})` : ''}
+                      </div>
+                      <div style={{ opacity: 0.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.path}</div>
+                    </div>
+                    {!isPrimary && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWorkspaceFolder(folder.path)}
+                        title={t('explorer.removeFolder')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'hsl(var(--text-secondary))',
+                          cursor: 'pointer',
+                          padding: 2,
+                          display: 'flex',
+                          opacity: 0.6
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

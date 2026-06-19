@@ -1,11 +1,11 @@
 import React from 'react';
-import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay } from 'lucide-react';
+import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useI18n } from '../i18n/LocaleContext';
 import './Sidebar.css';
 
 interface SidebarProps {
-  viewMode: 'editor' | 'engine' | 'terminal' | 'vmlab' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings';
+  viewMode: 'editor' | 'engine' | 'terminal' | 'vmlab' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems';
   setViewMode: (mode: any) => void;
   isDesktop?: boolean;
 }
@@ -21,6 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
     { id: 'preview', icon: <PlayCircle size={20} />, labelKey: 'sidebar.activePreview' as const },
     { id: 'marketplace', icon: <Package size={20} />, labelKey: 'sidebar.giraMarketplace' as const },
     { id: 'uat', icon: <Activity size={20} />, labelKey: 'sidebar.uatFeedback' as const },
+    { id: 'git', icon: <GitBranch size={20} />, labelKey: 'sidebar.git' as const },
+    { id: 'problems', icon: <AlertTriangle size={20} />, labelKey: 'sidebar.problems' as const },
     { id: 'settings', icon: <Settings size={20} />, labelKey: 'sidebar.neuralConfig' as const },
   ] as const;
 

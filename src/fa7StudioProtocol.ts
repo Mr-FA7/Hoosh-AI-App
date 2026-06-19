@@ -1,4 +1,4 @@
-export type FA7Mode = 'agent' | 'plan' | 'debug' | 'ask';
+export type FA7Mode = 'agent' | 'plan' | 'debug' | 'ask' | 'gather';
 
 export const FA7_STUDIO_SYSTEM_PROMPT = `
 **Project file access:** The workspace root, the open editor file, and the "Relevant Project Context" (index/listing) section are included in this message. **Do not** claim you cannot see project files; to read any other file use \`<!--FA7_DEV_READ:relative/path-->\`.

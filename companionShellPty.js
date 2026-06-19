@@ -9,6 +9,7 @@ const path = require('path');
 const os = require('os');
 const pty = require('node-pty');
 const WebSocket = require('ws');
+const { appendScrollback } = require('./lib/terminalContext');
 
 function defaultShell() {
   if (process.platform === 'win32') {
@@ -216,6 +217,38 @@ function openExternalUrl(urlStr) {
 }
 
 let currentDefaultCwd = os.homedir();
+/** @type {Map<string, { p: any, cwd: string, mode: string, purpose: string, clients: Set<any>, dataHandler?: (d: string) => void, scrollback?: string, clientBuffer?: string, clientSelection?: string, updatedAt?: number }>} */
+const namedSessions = new Map();
+
+/** @type {{ buffer: string, selection: string, purpose: string, updatedAt: number } | null} */
+let ephemeralClientTerminal = null;
+
+function recordScrollback(entry, chunk) {
+  if (!entry || !chunk) return;
+  entry.scrollback = appendScrollback(entry.scrollback || '', chunk);
+  entry.updatedAt = Date.now();
+}
+
+function trackTerminalInput(entry, data) {
+  if (!entry) return;
+  if (!entry.inputLine) entry.inputLine = '';
+  entry.inputLine += String(data || '');
+  if (/[\r\n]/.test(data)) {
+    const line = entry.inputLine.replace(/[\r\n]+/g, '').trim();
+    if (line) {
+      entry.lastCommand = line;
+      entry.commandOutputStart = (entry.scrollback || '').length;
+      entry.lastExitCode = null;
+    }
+    entry.inputLine = '';
+  }
+}
+
+function commandOutputFromEntry(entry) {
+  if (!entry) return '';
+  const start = Number(entry.commandOutputStart || 0);
+  return String(entry.scrollback || '').slice(start).trim();
+}
 
 function updateDefaultCwd(newPath) {
   if (fs.existsSync(newPath)) {
@@ -223,9 +256,85 @@ function updateDefaultCwd(newPath) {
   }
 }
 
+function listNamedTerminals() {
+  return Array.from(namedSessions.entries()).map(([name, s]) => ({
+    name,
+    cwd: s.cwd,
+    mode: s.mode,
+    purpose: s.purpose,
+    clients: s.clients.size
+  }));
+}
+
+function wireNamedSession(name, entry) {
+  if (!entry.dataHandler) {
+    entry.dataHandler = (data) => {
+      recordScrollback(entry, data);
+      for (const client of entry.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(Buffer.from(data, 'utf8'), { binary: true });
+        }
+      }
+    };
+    entry.p.onData(entry.dataHandler);
+  }
+  if (!entry.exitHooked) {
+    entry.exitHooked = true;
+    entry.p.onExit((code, signal) => {
+      entry.lastExitCode = code;
+      namedSessions.delete(name);
+      for (const client of entry.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ type: 'exit', code, signal, sessionName: name }));
+        }
+      }
+    });
+  }
+}
+
+function createNamedTerminal(name, opts = {}) {
+  const key = String(name || '').trim();
+  if (!key) throw new Error('Terminal name required');
+  if (namedSessions.has(key)) return { ok: true, reused: true, name: key };
+  const spawned = spawnPtySession({
+    cols: opts.cols || 80,
+    rows: opts.rows || 24,
+    cwd: opts.cwd || currentDefaultCwd,
+    mode: opts.mode || 'system',
+    purpose: opts.purpose || 'user'
+  });
+  const entry = {
+    ...spawned,
+    clients: new Set(),
+    dataHandler: null,
+    exitHooked: false,
+    scrollback: '',
+    clientBuffer: '',
+    clientSelection: '',
+    inputLine: '',
+    lastCommand: '',
+    lastExitCode: null,
+    commandOutputStart: 0,
+    updatedAt: Date.now()
+  };
+  namedSessions.set(key, entry);
+  wireNamedSession(key, entry);
+  return { ok: true, name: key, cwd: entry.cwd };
+}
+
+function attachClientToNamed(ws, name, sendJson) {
+  const entry = namedSessions.get(name);
+  if (!entry) return false;
+  entry.clients.add(ws);
+  wireNamedSession(name, entry);
+  sendJson({ type: 'ready', sessionName: name, reused: true, cwd: entry.cwd, mode: entry.mode, purpose: entry.purpose });
+  return true;
+}
+
 function attachPtyConnectionHandler(wss) {
   wss.on('connection', (ws) => {
     let session = null;
+    let attachedName = null;
 
     const sendJson = (obj) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
@@ -241,13 +350,19 @@ function attachPtyConnectionHandler(wss) {
       if (!msg || typeof msg !== 'object') return;
 
       if (msg.type === 'init') {
-        if (session) {
+        if (session && !attachedName) {
           try {
             session.p.kill();
           } catch (_) {}
           session = null;
         }
         try {
+          const sessionName = String(msg.sessionName || '').trim();
+          if (sessionName && namedSessions.has(sessionName)) {
+            attachedName = sessionName;
+            attachClientToNamed(ws, sessionName, sendJson);
+            return;
+          }
           const cwd = msg.cwd && fs.existsSync(msg.cwd) ? msg.cwd : currentDefaultCwd;
           session = spawnPtySession({
             cols: msg.cols,
@@ -256,20 +371,30 @@ function attachPtyConnectionHandler(wss) {
             mode: msg.mode || 'system',
             purpose: msg.purpose
           });
-          session.p.onData((data) => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(Buffer.from(data, 'utf8'), { binary: true });
-            }
-          });
-          session.p.onExit((code, signal) => {
-            sendJson({ type: 'exit', code, signal });
-            session = null;
-          });
+          if (sessionName) {
+            attachedName = sessionName;
+            session.clients = new Set([ws]);
+            namedSessions.set(sessionName, session);
+            wireNamedSession(sessionName, session);
+          } else {
+            session.scrollback = session.scrollback || '';
+            session.p.onData((data) => {
+              recordScrollback(session, data);
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(Buffer.from(data, 'utf8'), { binary: true });
+              }
+            });
+            session.p.onExit((code, signal) => {
+              sendJson({ type: 'exit', code, signal });
+              session = null;
+            });
+          }
           sendJson({
             type: 'ready',
             cwd: session.cwd,
             mode: session.mode,
-            purpose: session.purpose
+            purpose: session.purpose,
+            sessionName: attachedName || undefined
           });
         } catch (e) {
           sendJson({ type: 'error', error: e.message || String(e) });
@@ -286,12 +411,29 @@ function attachPtyConnectionHandler(wss) {
 
       if (msg.type === 'input' && session && typeof msg.data === 'string') {
         try {
+          trackTerminalInput(session, msg.data);
           session.p.write(msg.data);
+        } catch (_) {}
+        return;
+      }
+
+      if (msg.type === 'input' && attachedName && namedSessions.has(attachedName) && typeof msg.data === 'string') {
+        try {
+          const ent = namedSessions.get(attachedName);
+          trackTerminalInput(ent, msg.data);
+          ent.p.write(msg.data);
         } catch (_) {}
       }
     });
 
     ws.on('close', () => {
+      if (attachedName && namedSessions.has(attachedName)) {
+        const entry = namedSessions.get(attachedName);
+        entry.clients.delete(ws);
+        session = entry;
+        attachedName = null;
+        return;
+      }
       if (session) {
         try {
           session.p.kill();
@@ -346,6 +488,144 @@ function startPtyWebSocketServer(opts = {}) {
   })();
 }
 
+function getOrCreateAgentTerminal(agentSessionId, opts = {}) {
+  const key = `agent-${String(agentSessionId || '').trim()}`;
+  if (!key || key === 'agent-') throw new Error('agentSessionId required');
+  return createNamedTerminal(key, {
+    cwd: opts.cwd || currentDefaultCwd,
+    mode: opts.mode || 'system',
+    purpose: 'ai',
+    cols: opts.cols,
+    rows: opts.rows
+  });
+}
+
+function syncClientTerminalState(body = {}) {
+  const purpose = String(body.purpose || 'ai');
+  const payload = {
+    buffer: String(body.buffer || '').slice(0, 100000),
+    selection: String(body.selection || '').slice(0, 50000),
+    purpose,
+    updatedAt: Date.now()
+  };
+  ephemeralClientTerminal = payload;
+
+  const sessionName = String(body.sessionName || '').trim();
+  if (sessionName && namedSessions.has(sessionName)) {
+    const entry = namedSessions.get(sessionName);
+    entry.clientBuffer = payload.buffer;
+    entry.clientSelection = payload.selection;
+    entry.updatedAt = payload.updatedAt;
+  }
+  return { ok: true };
+}
+
+function enrichTerminalChunk(entry, base) {
+  return {
+    ...base,
+    lastCommand: entry?.lastCommand || '',
+    lastExitCode: entry?.lastExitCode ?? null,
+    commandOutput: commandOutputFromEntry(entry)
+  };
+}
+
+function getTerminalContext(opts = {}) {
+  const sessionId = String(opts.sessionId || '').trim();
+  const purposeFilter = String(opts.purpose || 'all').toLowerCase();
+  const selection = String(opts.selection || '').slice(0, 50000);
+  const clientBuffer = String(opts.clientBuffer || '').slice(0, 100000);
+
+  const chunks = [];
+
+  if (sessionId) {
+    const name = sessionId.startsWith('agent-') ? sessionId : `agent-${sessionId}`;
+    const entry = namedSessions.get(name);
+    if (entry) {
+      if (purposeFilter === 'all' || entry.purpose === purposeFilter) {
+        chunks.push(enrichTerminalChunk(entry, {
+          sessionName: name,
+          purpose: entry.purpose,
+          cwd: entry.cwd,
+          buffer: entry.clientBuffer || entry.scrollback || '',
+          selection: selection || entry.clientSelection || ''
+        }));
+      }
+    }
+  }
+
+  for (const [name, entry] of namedSessions.entries()) {
+    if (sessionId && (name === sessionId || name === `agent-${sessionId}`)) continue;
+    if (purposeFilter !== 'all' && entry.purpose !== purposeFilter) continue;
+    chunks.push(enrichTerminalChunk(entry, {
+      sessionName: name,
+      purpose: entry.purpose,
+      cwd: entry.cwd,
+      buffer: entry.clientBuffer || entry.scrollback || '',
+      selection: entry.clientSelection || ''
+    }));
+  }
+
+  if (ephemeralClientTerminal) {
+    if (purposeFilter === 'all' || ephemeralClientTerminal.purpose === purposeFilter) {
+      chunks.push({
+        sessionName: 'active-pane',
+        purpose: ephemeralClientTerminal.purpose,
+        cwd: currentDefaultCwd,
+        buffer: ephemeralClientTerminal.buffer,
+        selection: ephemeralClientTerminal.selection
+      });
+    }
+  }
+
+  if (clientBuffer || selection) {
+    chunks.push({
+      sessionName: 'client',
+      purpose: purposeFilter === 'all' ? 'ui' : purposeFilter,
+      cwd: currentDefaultCwd,
+      buffer: clientBuffer,
+      selection
+    });
+  }
+
+  const merged = chunks[0] || {
+    sessionName: sessionId ? `agent-${sessionId}` : 'terminal',
+    purpose: purposeFilter === 'all' ? 'ai' : purposeFilter,
+    cwd: currentDefaultCwd,
+    buffer: clientBuffer || ephemeralClientTerminal?.buffer || '',
+    selection: selection || ephemeralClientTerminal?.selection || ''
+  };
+
+  return {
+    sessions: chunks,
+    primary: merged
+  };
+}
+
+function scanTerminalDevUrls(opts = {}) {
+  const projectRoot = opts.projectRoot ? path.resolve(String(opts.projectRoot)) : null;
+  const localRe = /Local:\s+(https?:\/\/[^\s\x1b]+)/gi;
+  const urlRe = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):\d+(?:\/[^\s\)"']*)?/gi;
+  const found = new Set();
+
+  const ingestText = (text, cwd) => {
+    if (projectRoot && cwd) {
+      const resolved = path.resolve(String(cwd));
+      if (resolved !== projectRoot && !resolved.startsWith(projectRoot + path.sep)) return;
+    }
+    const clean = String(text || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    for (const m of clean.matchAll(localRe)) found.add(String(m[1]).trim());
+    for (const m of clean.matchAll(urlRe)) found.add(String(m[0]).trim());
+  };
+
+  for (const [, entry] of namedSessions.entries()) {
+    ingestText(entry.clientBuffer || entry.scrollback || '', entry.cwd);
+  }
+  if (ephemeralClientTerminal) {
+    ingestText(ephemeralClientTerminal.buffer, currentDefaultCwd);
+  }
+  return [...found];
+}
+
 module.exports = {
   startPtyWebSocketServer,
   openSystemTerminal,
@@ -353,5 +633,11 @@ module.exports = {
   isAllowedHttpUrl,
   isolatedHomeRoot,
   defaultShell,
-  updateDefaultCwd
+  updateDefaultCwd,
+  listNamedTerminals,
+  createNamedTerminal,
+  getOrCreateAgentTerminal,
+  syncClientTerminalState,
+  getTerminalContext,
+  scanTerminalDevUrls
 };

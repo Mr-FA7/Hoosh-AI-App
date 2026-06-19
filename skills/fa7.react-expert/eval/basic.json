@@ -1,0 +1,8 @@
+{
+  "name": "react-expert-basics",
+  "cases": [
+    { "name": "prefers hooks", "assert": "systemPromptContains", "value": "hooks" },
+    { "name": "typescript by default", "assert": "systemPromptContains", "value": "TypeScript" },
+    { "name": "shell limited to js tooling", "assert": "shellAllowlistEquals", "value": ["npm", "npx", "pnpm", "yarn", "vite", "node"] }
+  ]
+}

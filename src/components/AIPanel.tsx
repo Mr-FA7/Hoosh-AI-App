@@ -4,8 +4,8 @@ import {
   Send, Sparkles, MessageSquare, Loader2, X, FolderOpen, File, Trash2,
   Plus, Paperclip, BookOpen, AlertCircle, Zap, Brain, HelpCircle,
   Activity, Search, Mic, MicOff, ListOrdered, Cloud, HardDrive,
-  StopCircle, Lock, Server, CheckCircle2, Save, Wand2, Copy, Check, Undo2,
-  Image as ImageIcon, Code, FileText, Globe, RefreshCw, ChevronRight, Pin
+  StopCircle, Lock, Server, CheckCircle2, Save, Wand2, Copy, Check, Undo2, Play,
+  Image as ImageIcon, Code, FileText, Globe, RefreshCw, ChevronRight, Pin, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,32 +14,35 @@ import {
   FA7_ASSET_STUDIO_HINT,
   FA7_VM_LAB_HINT,
   FA7_TERMINAL_CONTEXT_HINT,
-  stripFa7DevTags,
-  extractFa7DevReads,
-  extractFa7DevWrites,
-  extractFa7SystemInstalls,
-  extractFa7TerminalRuns,
-  extractFa7GiraDownloads,
   getModeSystemPrompt,
   getRulePrompt,
   getNotebookContext,
   extractRulesFromMessage
 } from '../fa7StudioProtocol';
 import {
-  FA7_AI_BROWSER_SYSTEM_HINT,
-  stripFa7AiBrowserTags,
-  extractFa7AiBrowserOpens
+  FA7_AI_BROWSER_SYSTEM_HINT
 } from '../fa7AiBrowserProtocol';
+import { runFa7ActionsFromAssistant, stripFa7ActionTags } from '../fa7ActionRunner';
 import AIHeader from './hoosh/AIHeader';
 import ApprovalModal from './hoosh/ApprovalModal';
+import CheckpointPanel from './hoosh/CheckpointPanel';
 import { useHooshStore } from '../hoosh/useHooshStore';
 import { API_BASE } from '../apiBase';
 import { runChatStream } from '../hoosh/agentService';
 import { useI18n } from '../i18n/LocaleContext';
 import { mermaidToPlanMarkdown } from '../flowchart/mermaidPlan';
+import {
+  AGENT_INJECT_EVENT,
+  AGENT_MISSION_EVENT,
+  type AgentInjectDetail,
+  type AgentMissionDetail
+} from '../lib/agentContextBridge';
+import { dispatchAgentVisualAction, mapUiAgentEvent } from '../lib/agentVisualBridge';
 
 const CHAT_SESSIONS_KEY = 'fa7_chat_sessions_v1';
 const ACTIVE_CHAT_SESSION_KEY = 'fa7_active_chat_session_v1';
+const BACKEND_SESSION_MAP_KEY = 'fa7_backend_session_map_v1';
+const AGENT_TERMINAL_SESSION_KEY = 'hoosh_agent_terminal_session';
 
 type ChatMsg =
   | { role: 'user'; content: string; attachments?: UploadedAsset[] }
@@ -223,6 +226,7 @@ interface ChatSession {
   currentMission: { name?: string; plan: any; steps: any[]; status: string } | null;
   pinned: boolean;
   temporary?: boolean;
+  backendSessionId?: string;
 }
 
 interface AiChangeStats {
@@ -725,22 +729,29 @@ interface AIPanelProps {
   onOpenEditorTerminalTab?: (opts?: { aiStatus?: string }) => void;
   onOpenEditorAgentTab?: (opts?: { aiStatus?: string }) => void;
   onOpenEditorDownloadTab?: (opts?: { initialUrl?: string; aiStatus?: string }) => void;
+  onProposals?: (proposals: { fileName: string; original: string; proposed: string }[]) => void;
+  onMissionDiffZone?: (proposal: { fileName: string; original: string; proposed: string } | null) => void;
 }
 
 const AIPanel: React.FC<AIPanelProps> = ({
   activeFile, currentContent, onFileSelect, onMissionUpdate,
-  onRefreshExplorer, onOpenKavosh, onOpenEditorTerminalTab, onOpenEditorDownloadTab
+  onRefreshExplorer, onOpenKavosh, onOpenEditorTerminalTab, onOpenEditorDownloadTab,
+  onProposals, onMissionDiffZone
 }) => {
   const { t } = useI18n();
   const MODE_CONFIG = useMemo((): Record<FA7Mode, { label: string; icon: React.ReactNode; color: string; desc: string }> => ({
     agent: { label: t('mode.pilot'), icon: <Zap size={12} />, color: '#a855f7', desc: t('mode.pilotDesc') },
     plan: { label: t('mode.architect'), icon: <Sparkles size={12} />, color: '#10b981', desc: t('mode.architectDesc') },
     debug: { label: t('mode.medic'), icon: <Activity size={12} />, color: '#ef4444', desc: t('mode.medicDesc') },
-    ask: { label: t('mode.oracle'), icon: <Search size={12} />, color: '#f59e0b', desc: t('mode.oracleDesc') }
+    ask: { label: t('mode.oracle'), icon: <Search size={12} />, color: '#f59e0b', desc: t('mode.oracleDesc') },
+    gather: { label: t('mode.gather'), icon: <BookOpen size={12} />, color: '#06b6d4', desc: t('mode.gatherDesc') }
   }), [t]);
   const [prompt, setPrompt] = useState('');
+  const sendMessageRef = useRef<(textOverride?: string) => Promise<void>>(async () => {});
   const [lastMermaidFlowchart, setLastMermaidFlowchart] = useState<string>('');
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const messagesLenRef = useRef(0);
+  useEffect(() => { messagesLenRef.current = messages.length; }, [messages]);
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState('mistral');
@@ -748,6 +759,197 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const [contextFiles, setContextFiles] = useState<ContextFile[]>([]);
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<string[]>([]);
+
+  const MENTION_PROVIDERS = useMemo(() => [
+    { id: 'git', label: 'Git Diff', icon: '📋' },
+    { id: 'codebase', label: 'Codebase Map', icon: '🗺️' },
+    { id: 'symbol', label: 'Symbols', icon: '🔎' },
+    { id: 'folder', label: 'Project Folder', icon: '📁' },
+    { id: 'web', label: 'Web Search', icon: '🌐' },
+    { id: 'terminal', label: 'Terminal Output', icon: '💻' },
+    { id: 'problems', label: 'Problems', icon: '⚠️' },
+    { id: 'docs', label: 'Docs', icon: '📚' },
+  ], []);
+
+  useEffect(() => {
+    if (mentionSearch === null) { setSearchResults([]); return; }
+    const q = mentionSearch.toLowerCase();
+    const providerHits = MENTION_PROVIDERS
+      .filter((p) => p.label.toLowerCase().includes(q) || p.id.includes(q))
+      .map((p) => `@${p.id}`);
+    Promise.all([
+      axios.get(`${API_BASE}/v3/files/search`, { params: { q: mentionSearch } }).catch(() => ({ data: [] })),
+      axios.get(`${API_BASE}/v3/symbols/search`, { params: { q: mentionSearch } }).catch(() => ({ data: { results: [] } }))
+    ]).then(([fr, sr]) => {
+      const files = Array.isArray(fr.data) ? fr.data : (fr.data?.results || []);
+      const symbols = (sr.data?.results || []).map((s: any) => `@symbol:${s.id}`);
+      setSearchResults([...providerHits, ...symbols, ...files].slice(0, 15));
+    }).catch(() => setSearchResults(providerHits));
+  }, [mentionSearch, MENTION_PROVIDERS]);
+
+  useEffect(() => {
+    const q = prompt.trim();
+    if (q.length < 3) {
+      setMatchedSkills([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/skills/match`, { params: { q } });
+        setMatchedSkills(r.data?.skills || []);
+      } catch {
+        setMatchedSkills([]);
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [prompt]);
+
+  const selectMention = useCallback(async (item: string) => {
+    const val = prompt;
+    const lastAtIdx = val.lastIndexOf('@');
+    const before = lastAtIdx >= 0 ? val.slice(0, lastAtIdx) : val;
+    setPrompt(before.trimEnd());
+    setMentionSearch(null);
+
+    if (item === '@git') {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/context/git-diff`);
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@git-diff'), {
+          path: '@git-diff',
+          content: r.data?.diff || '(no git changes)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@codebase') {
+      try {
+        const q = before.trim() || prompt.trim();
+        const r = await axios.post(`${API_BASE}/ai/hybrid-search`, { query: q, topK: 8 });
+        const merged = r.data?.merged || [];
+        const body = merged.length
+          ? ('## Codebase (hybrid RAG)\n' + merged.map((h: { path: string; score?: number; text?: string }) =>
+            `### ${h.path}${h.score != null ? ` (${Number(h.score).toFixed(2)})` : ''}\n${h.text || ''}`).join('\n\n'))
+          : ((await axios.get(`${API_BASE}/ai/repo-map`, { params: { q } })).data?.map || '');
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@codebase'), {
+          path: '@codebase',
+          content: body || '(no matches)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@symbol') {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/symbols/search`, { params: { q: prompt } });
+        const results = r.data?.results || [];
+        const blocks: string[] = [];
+        for (const s of results.slice(0, 6)) {
+          const ctx = await axios.get(`${API_BASE}/v3/symbols/context`, { params: { id: s.id } }).catch(() => null);
+          if (ctx?.data?.snippet) {
+            blocks.push(`### ${s.symbol} @ ${s.path}:${s.line}\n` + ctx.data.snippet);
+          }
+        }
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@symbols'), {
+          path: '@symbols',
+          content: blocks.length ? ('## Symbols\n' + blocks.join('\n\n')) : '(no matches)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@folder') {
+      try {
+        const r = await axios.post(`${API_BASE}/v3/files/attach-folder-from-path`, {
+          path: (await axios.get(`${API_BASE}/v3/project/path`)).data?.path,
+          maxFiles: 30
+        });
+        const files = r.data?.files || [];
+        for (const f of files.slice(0, 20)) {
+          setContextFiles((prev) => {
+            if (prev.some((x) => x.path === f.path)) return prev;
+            return [...prev, { path: f.path, content: f.content || '' }];
+          });
+        }
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@web') {
+      const q = before.trim() || 'project documentation';
+      try {
+        const r = await axios.post(`${API_BASE}/v3/web/search`, { query: q, limit: 5 });
+        const snippets = (r.data?.results || []).map((x: { title?: string; snippet?: string }) =>
+          `${x.title || ''}\n${x.snippet || ''}`).join('\n\n');
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@web'), {
+          path: '@web',
+          content: snippets || '(no web results)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@terminal') {
+      try {
+        const win = window as unknown as {
+          __fa7TerminalSelection?: string;
+          __fa7TerminalBuffer?: string;
+        };
+        const sel = win.__fa7TerminalSelection || '';
+        const buf = win.__fa7TerminalBuffer || '';
+        const sessionId = localStorage.getItem(AGENT_TERMINAL_SESSION_KEY) || '';
+        const r = await axios.get(`${API_BASE}/v3/context/terminal`, {
+          params: {
+            sessionId,
+            selection: sel,
+            buffer: buf,
+            purpose: 'all'
+          }
+        });
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@terminal'), {
+          path: '@terminal',
+          content: r.data?.content || sel || buf || '(no terminal output)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@problems') {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/context/problems`, {
+          params: { runLint: '1' }
+        });
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@problems'), {
+          path: '@problems',
+          content: r.data?.content || '(no problems found)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+    if (item === '@docs') {
+      const q = before.trim() || prompt.trim();
+      try {
+        const r = await axios.get(`${API_BASE}/v3/context/docs`, { params: { q } });
+        setContextFiles((prev) => [...prev.filter((f) => f.path !== '@docs'), {
+          path: '@docs',
+          content: r.data?.content || '(no documentation found)'
+        }]);
+      } catch { /* ignore */ }
+      return;
+    }
+
+    if (item.startsWith('@symbol:')) {
+      try {
+        const id = item.slice('@symbol:'.length);
+        const r = await axios.get(`${API_BASE}/v3/symbols/context`, { params: { id } });
+        setContextFiles((prev) => [...prev, { path: `@symbol:${id}`, content: r.data?.snippet || '' }]);
+      } catch { /* ignore */ }
+      return;
+    }
+
+    const relPath = item.replace(/^@/, '');
+    try {
+      const r = await axios.get(`${API_BASE}/v3/files/content`, { params: { path: relPath } });
+      setContextFiles((prev) => {
+        if (prev.some((f) => f.path === relPath)) return prev;
+        return [...prev, { path: relPath, content: r.data?.content || '' }];
+      });
+    } catch { /* ignore */ }
+  }, [prompt, MENTION_PROVIDERS]);
   const [mode, setMode] = useState<FA7Mode>('agent');
   const [uploadedAssets, setUploadedAssets] = useState<UploadedAsset[]>([]);
   const [notebookModalOpen, setNotebookModalOpen] = useState(false);
@@ -763,6 +965,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
 
   // ✨ GLOBAL CODE BLOCK STATE
   const [codeStatuses, setCodeStatuses] = useState<Record<string, 'pending' | 'accepted' | 'rejected'>>({});
+  const diffZoneRef = useRef<{ fileName: string; original: string; proposed: string } | null>(null);
 
   const [loadingModelInfo, setLoadingModelInfo] = useState<{
     name: string; route: 'online' | 'offline'; allowedTooltip?: string;
@@ -773,6 +976,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const [speechSupported, setSpeechSupported] = useState(false);
 
   const [vaultModalOpen, setVaultModalOpen] = useState(false);
+  const [checkpointOpen, setCheckpointOpen] = useState(false);
   const [vaultItems, setVaultItems] = useState<Record<string, string>>({});
   const [newVaultKey, setNewVaultKey] = useState('');
   const [newVaultVal, setNewVaultVal] = useState('');
@@ -799,6 +1003,9 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const dragCounter = useRef(0);
 
   const [currentMission, setCurrentMission] = useState<{ name?: string; plan: any; steps: any[]; status: string } | null>(null);
+  const [pendingPlanImplement, setPendingPlanImplement] = useState(false);
+  const [checkpointTimeline, setCheckpointTimeline] = useState<Array<{ id: string; label: string; files: string[]; at: string; messageIndex?: number }>>([]);
+  const [matchedSkills, setMatchedSkills] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [missionHistory, setMissionHistory] = useState<any[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState('');
@@ -808,6 +1015,47 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const previousSessionBeforeTemporaryRef = useRef<string | null>(null);
 
   const setChatStreaming = useHooshStore((s) => s.setChatStreaming);
+
+  const processAssistantFa7Actions = useCallback(async (wasAborted: boolean) => {
+    if (wasAborted) return;
+
+    let assistantContent = '';
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant') assistantContent = last.content;
+      return prev;
+    });
+    if (!assistantContent.trim()) return;
+
+    const cleaned = stripFa7ActionTags(assistantContent);
+    if (cleaned !== assistantContent.trim()) {
+      setMessages((prev) => {
+        const next = [...prev];
+        const li = next.length - 1;
+        if (li >= 0 && next[li]?.role === 'assistant') {
+          next[li] = { role: 'assistant', content: cleaned };
+        }
+        return next;
+      });
+    }
+
+    // Agent/plan/debug with an open project use kernel mission loop (TOOL:), not FA7 tags.
+    if (mode === 'agent' || mode === 'plan' || mode === 'debug') return;
+
+    await runFa7ActionsFromAssistant(assistantContent, {
+      apiBase: API_BASE,
+      mode,
+      onProposals,
+      onOpenKavosh,
+      onOpenTerminal: onOpenEditorTerminalTab,
+      onOpenDownload: onOpenEditorDownloadTab,
+      onFileSelect,
+      onRefreshExplorer,
+      appendSystemInfo: (message) => {
+        setMessages((prev) => [...prev, { role: 'system_info', content: message }]);
+      }
+    });
+  }, [mode, onProposals, onOpenKavosh, onOpenEditorTerminalTab, onOpenEditorDownloadTab, onFileSelect, onRefreshExplorer]);
 
   const handleOpenLink = useCallback((url: string) => {
     if (onOpenKavosh) onOpenKavosh(url);
@@ -1277,6 +1525,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      const streamId = (window as unknown as { __fa7LastStreamId?: string }).__fa7LastStreamId;
+      axios.post(`${API_BASE}/ai/chat/abort`, streamId ? { streamId } : {}).catch(() => {});
       setIsLoading(false);
       setLoadingModelInfo(null);
       setCurrentMission((prev) => prev ? { ...prev, status: t('aiPanel.missionAborted') } : null);
@@ -1469,7 +1719,55 @@ const AIPanel: React.FC<AIPanelProps> = ({
     } else { setMentionSearch(null); }
   };
 
-  const runAssistantStream = async (threadForApi: ChatMsg[]) => {
+  const readBackendSessionMap = (): Record<string, string> => {
+    try {
+      const raw = localStorage.getItem(BACKEND_SESSION_MAP_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const writeBackendSessionMap = (map: Record<string, string>) => {
+    localStorage.setItem(BACKEND_SESSION_MAP_KEY, JSON.stringify(map));
+  };
+
+  const ensureBackendSessionId = async (frontendId: string, title: string): Promise<string | null> => {
+    if (isTemporaryChat) return null;
+    const active = chatSessions.find((s) => s.id === frontendId);
+    if (active?.backendSessionId) return active.backendSessionId;
+    const map = readBackendSessionMap();
+    if (map[frontendId]) {
+      setChatSessions((prev) => prev.map((s) => s.id === frontendId ? { ...s, backendSessionId: map[frontendId] } : s));
+      return map[frontendId];
+    }
+    try {
+      const res = await axios.post(`${API_BASE}/v3/agent-sessions`, { title: title.slice(0, 120) || 'Chat' });
+      const id = String(res.data?.session?.id || '');
+      if (!id) return null;
+      map[frontendId] = id;
+      writeBackendSessionMap(map);
+      setChatSessions((prev) => prev.map((s) => s.id === frontendId ? { ...s, backendSessionId: id } : s));
+      try {
+        localStorage.setItem(AGENT_TERMINAL_SESSION_KEY, id);
+        await axios.post(`${API_BASE}/v3/terminals/agent-bind`, { sessionId: id });
+      } catch { /* non-fatal */ }
+      return id;
+    } catch {
+      return null;
+    }
+  };
+
+  const syncAssistantToBackend = async (backendSessionId: string, content: string) => {
+    if (!backendSessionId || !content.trim()) return;
+    try {
+      await axios.post(`${API_BASE}/v3/agent-sessions/${backendSessionId}/messages`, {
+        message: { role: 'assistant', content: content.slice(0, 50000), at: new Date().toISOString() }
+      });
+    } catch { /* non-fatal */ }
+  };
+
+  const runAssistantStream = async (threadForApi: ChatMsg[], backendSessionId?: string | null) => {
     const prefs = readModelPrefs();
     const eligible = computeEligibleModels(prefs, models);
     let allowedModels = eligible.map((m: { name: string }) => String(m.name)).filter(Boolean);
@@ -1503,37 +1801,219 @@ const AIPanel: React.FC<AIPanelProps> = ({
     const signal = abortControllerRef.current?.signal;
     if (!signal) return;
 
+    let useAcp = false;
+    let acpBackend: string | undefined;
+    if (mode === 'ask') {
+      try {
+        const acpRes = await axios.get(`${API_BASE}/v3/acp/backends`);
+        if (acpRes.data?.useAcpForChat) {
+          const backends = acpRes.data?.backends || [];
+          const active = backends.find((b: { active?: boolean; enabled?: boolean }) => b.active && b.enabled);
+          if (active?.id) {
+            useAcp = true;
+            acpBackend = String(active.id);
+          }
+        }
+      } catch { /* default kernel route */ }
+    }
+
+    let assistantAccum = '';
     await runChatStream(
       {
         messages: apiMessages,
         stream: true,
         model: modelName,
         mode,
-        allowedModels
+        allowedModels,
+        sessionId: backendSessionId || undefined,
+        useAcp,
+        acpBackend
       },
       {
         signal,
+        onStreamId: (id) => {
+          (window as unknown as { __fa7LastStreamId?: string }).__fa7LastStreamId = id;
+        },
         onLine: ({ text, agentEvent }) => {
-          if (text) appendAssistantDelta(text);
-          if (agentEvent) {
+          if (text) {
+            assistantAccum += text;
+            appendAssistantDelta(text);
+          }
+            if (agentEvent) {
             const raw = agentEvent as Record<string, unknown>;
+            const evType = String(raw.type || '');
+            if (evType === 'token' && raw.token) {
+              const tok = String(raw.token);
+              assistantAccum += tok;
+              appendAssistantDelta(tok);
+            }
+            if (evType === 'finish' && typeof raw.message === 'string' && !assistantAccum.trim()) {
+              assistantAccum = String(raw.message);
+              appendAssistantDelta(assistantAccum);
+            }
+            if (evType === 'paused' && raw.planOnly) {
+              setPendingPlanImplement(true);
+            }
+            if (evType === 'checkpoint') {
+              setCheckpointTimeline((prev) => [...prev, {
+                id: String(raw.id || ''),
+                label: String(raw.label || 'checkpoint'),
+                files: Array.isArray(raw.files) ? raw.files.map(String) : [],
+                at: new Date().toISOString(),
+                messageIndex: messagesLenRef.current
+              }]);
+            }
+            if (evType === 'diffzone_start') {
+              const fileName = String(raw.path || raw.fileName || '');
+              if (fileName) {
+                onFileSelect?.(fileName);
+                diffZoneRef.current = {
+                  fileName,
+                  original: String(raw.original || ''),
+                  proposed: ''
+                };
+                const proposal = {
+                  fileName,
+                  original: String(raw.original || ''),
+                  proposed: ''
+                };
+                onMissionDiffZone?.(proposal);
+                onProposals?.([proposal]);
+              }
+            }
+            if (evType === 'diffzone_update' && diffZoneRef.current) {
+              diffZoneRef.current.proposed = String(raw.proposed || diffZoneRef.current.proposed || '');
+              const proposal = {
+                fileName: diffZoneRef.current.fileName,
+                original: diffZoneRef.current.original,
+                proposed: diffZoneRef.current.proposed
+              };
+              onMissionDiffZone?.(proposal);
+              onProposals?.([proposal]);
+            }
+            if (evType === 'diffzone_complete') {
+              diffZoneRef.current = null;
+            }
+            if (evType === 'proposed_write') {
+              const fileName = String(raw.path || '');
+              if (fileName) {
+                onFileSelect?.(fileName);
+                const proposal = {
+                  fileName,
+                  original: String(raw.original || ''),
+                  proposed: String(raw.proposed || '')
+                };
+                onMissionDiffZone?.(proposal);
+                onProposals?.([proposal]);
+              }
+            }
+            if (evType === 'ask') {
+              const q = String(raw.question || raw.message || '');
+              if (q) {
+                useHooshStore.setState({ isPaused: true, askQuestion: q });
+              }
+            }
+            if (evType.startsWith('subagent')) {
+              const msg = evType === 'subagents_start'
+                ? t('aiPanel.subagentsStart')
+                : evType === 'subagent_start'
+                  ? `${t('aiPanel.subagentResearch')}: ${String(raw.focus || raw.id || '')}`
+                  : evType === 'subagents_complete'
+                    ? t('aiPanel.subagentsDone')
+                    : thinkingState;
+              if (msg) setThinkingState(msg);
+            }
             if (String(raw.type) === 'mission_name' && typeof raw.name === 'string') {
               onMissionUpdate?.(raw.name);
             }
+            const visualAction = mapUiAgentEvent(raw as Record<string, unknown>);
+            if (visualAction) dispatchAgentVisualAction(visualAction);
             if (!text) useHooshStore.getState().ingestAgentEvent(agentEvent);
             setCurrentMission((prev) => reduceMissionState(prev, raw, t));
           }
         }
       }
     );
+    if (backendSessionId && assistantAccum.trim()) {
+      await syncAssistantToBackend(backendSessionId, assistantAccum);
+    }
   };
 
-  const handleSendMessage = async () => {
+  const handleImplementPlan = async () => {
+    if (isLoading || !pendingPlanImplement) return;
+    setPendingPlanImplement(false);
+    setMode('agent');
+    setIsLoading(true);
+    abortControllerRef.current = new AbortController();
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+    try {
+      const backendSessionId = await ensureBackendSessionId(activeSessionId, deriveSessionTitle(messages));
+      const res = await fetch(`${API_BASE}/api/v3/mission/implement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: backendSessionId }),
+        signal: abortControllerRef.current.signal
+      });
+      if (!res.ok) throw new Error(`Implement failed (${res.status})`);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No stream body');
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n');
+        buf = parts.pop() || '';
+        for (const line of parts) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line) as { agent_event?: Record<string, unknown> };
+            const ev = obj.agent_event;
+            if (!ev) continue;
+            const evType = String(ev.type || '');
+            if (evType === 'token' && ev.token) {
+              const tok = String(ev.token);
+              setMessages((prev) => {
+                const next = [...prev];
+                const li = next.length - 1;
+                if (li >= 0 && next[li]?.role === 'assistant') {
+                  const cur = next[li] as { role: 'assistant'; content: string };
+                  next[li] = { role: 'assistant', content: cur.content + tok };
+                }
+                return next;
+              });
+              useHooshStore.getState().processStreamText(tok);
+            }
+            setCurrentMission((prev) => reduceMissionState(prev, ev, t));
+          } catch { /* ignore bad line */ }
+        }
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        const msg = e instanceof Error ? e.message : String(e);
+        setMessages((prev) => {
+          const next = [...prev];
+          const li = next.length - 1;
+          if (li >= 0 && next[li]?.role === 'assistant') {
+            next[li] = { role: 'assistant', content: `**Error:** ${msg}` };
+          }
+          return next;
+        });
+      }
+    } finally {
+      setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleSendMessage = async (textOverride?: string) => {
     if (isLoading) return;
-    if (!prompt.trim() && uploadedAssets.length === 0) return;
+    const promptText = textOverride ?? prompt;
+    if (!promptText.trim() && uploadedAssets.length === 0) return;
 
     const assetsToSend = [...uploadedAssets];
-    const rawUserContent = prompt.trim() || t('aiPanel.attachedFiles');
+    const rawUserContent = promptText.trim() || t('aiPanel.attachedFiles');
 
     const mermaidBlock = rawUserContent.match(/```mermaid[\s\S]*?```/i)?.[0] || '';
     if (mermaidBlock) setLastMermaidFlowchart(mermaidBlock);
@@ -1560,6 +2040,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
 
     useHooshStore.getState().resetMissionLogs();
     setCurrentMission(null);
+    setPendingPlanImplement(false);
+    setCheckpointTimeline([]);
     setPrompt('');
     setUploadedAssets([]);
     setIsLoading(true);
@@ -1567,11 +2049,15 @@ const AIPanel: React.FC<AIPanelProps> = ({
 
     setMessages([...threadForApi, { role: 'assistant', content: '' }]);
 
+    let aborted = false;
+    let backendSessionId: string | null = null;
     try {
-      await runAssistantStream(threadForApi);
+      const sessionTitle = deriveSessionTitle(threadForApi);
+      backendSessionId = await ensureBackendSessionId(activeSessionId, sessionTitle);
+      await runAssistantStream(threadForApi, backendSessionId);
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') {
-        /* user stopped */
+        aborted = true;
       } else {
         const msg = e instanceof Error ? e.message : String(e);
         setMessages((prev) => {
@@ -1587,8 +2073,35 @@ const AIPanel: React.FC<AIPanelProps> = ({
       setIsLoading(false);
       setLoadingModelInfo(null);
       abortControllerRef.current = null;
+      void processAssistantFa7Actions(aborted);
     }
   };
+
+  sendMessageRef.current = handleSendMessage;
+
+  useEffect(() => {
+    const onInject = (event: Event) => {
+      const detail = (event as CustomEvent<AgentInjectDetail>).detail;
+      if (!detail?.text) return;
+      if (detail.autoSend) {
+        void sendMessageRef.current(detail.text);
+      } else {
+        setPrompt(detail.text);
+      }
+    };
+    const onMission = (event: Event) => {
+      const detail = (event as CustomEvent<AgentMissionDetail>).detail;
+      if (!detail?.goal) return;
+      setMode('agent');
+      void sendMessageRef.current(detail.goal);
+    };
+    window.addEventListener(AGENT_INJECT_EVENT, onInject);
+    window.addEventListener(AGENT_MISSION_EVENT, onMission);
+    return () => {
+      window.removeEventListener(AGENT_INJECT_EVENT, onInject);
+      window.removeEventListener(AGENT_MISSION_EVENT, onMission);
+    };
+  }, []);
 
   const handleRegenerate = async (index: number) => {
     if (isLoading) return;
@@ -1607,10 +2120,13 @@ const AIPanel: React.FC<AIPanelProps> = ({
     setIsLoading(true);
     abortControllerRef.current = new AbortController();
 
+    let regenAborted = false;
     try {
       await runAssistantStream(threadForApi);
     } catch (e) {
-      if ((e as Error)?.name !== 'AbortError') {
+      if ((e as Error)?.name === 'AbortError') {
+        regenAborted = true;
+      } else {
         const msg = e instanceof Error ? e.message : String(e);
         setMessages((prev) => {
           const next = [...prev];
@@ -1625,6 +2141,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
       setIsLoading(false);
       setLoadingModelInfo(null);
       abortControllerRef.current = null;
+      void processAssistantFa7Actions(regenAborted);
     }
   };
 
@@ -1666,11 +2183,32 @@ const AIPanel: React.FC<AIPanelProps> = ({
 
   const toggleTemporaryChat = () => isTemporaryChat ? exitTemporaryChat() : startNewChat(true);
 
-  const switchSession = (sessionId: string) => {
+  const switchSession = async (sessionId: string) => {
     const target = chatSessions.find((s) => s.id === sessionId);
     if (!target) return;
-    setIsTemporaryChat(false); setActiveSessionId(target.id); setMessages(target.messages || []); setCurrentMission(target.currentMission || null); if (target.mode) setMode(target.mode);
-    setShowHistoryModal(false); localStorage.setItem(ACTIVE_CHAT_SESSION_KEY, target.id);
+    let session = target;
+    if (target.backendSessionId) {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/agent-sessions/${target.backendSessionId}`);
+        const backend = r.data?.session;
+        if (backend?.messages?.length) {
+          session = {
+            ...target,
+            messages: backend.messages,
+            mode: backend.mode || target.mode,
+            title: backend.title || target.title
+          };
+          setChatSessions((prev) => prev.map((s) => s.id === sessionId ? session : s));
+        }
+      } catch { /* use local copy */ }
+    }
+    setIsTemporaryChat(false);
+    setActiveSessionId(session.id);
+    setMessages(session.messages || []);
+    setCurrentMission(session.currentMission || null);
+    if (session.mode) setMode(session.mode);
+    setShowHistoryModal(false);
+    localStorage.setItem(ACTIVE_CHAT_SESSION_KEY, session.id);
   };
 
   const deleteSession = (sessionId: string) => {
@@ -1724,6 +2262,17 @@ const AIPanel: React.FC<AIPanelProps> = ({
         pulseStreaming={isLoading}
         onAbort={handleAbortAll}
       >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setCheckpointOpen(true);
+          }}
+          title={t('checkpoint.title')}
+          className="inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-0 text-[#34d399] transition hover:bg-white/[0.08] hover:text-[#6ee7b7]"
+        >
+          <History className="h-[18px] w-[18px]" strokeWidth={2.25} />
+        </button>
         <button
           type="button"
           onClick={(e) => {
@@ -1981,6 +2530,80 @@ const AIPanel: React.FC<AIPanelProps> = ({
                         </div>
                       ))}
                     </div>
+
+                    {checkpointTimeline.length > 0 && (
+                      <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
+                          {t('aiPanel.checkpointCreated')}
+                        </div>
+                        {checkpointTimeline.map((cp) => (
+                          <div key={cp.id + cp.at} style={{ fontSize: '11px', color: '#a1a1aa', marginBottom: '6px', padding: '6px 8px', background: 'rgba(59,130,246,0.08)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <span>
+                              <span style={{ color: '#93c5fd' }}>{cp.label}</span>
+                              {cp.files.length > 0 && (
+                                <span style={{ color: '#666' }}> — {cp.files.join(', ')}</span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm(t('checkpoint.confirmRestore'))) return;
+                                try {
+                                  const backendId = chatSessions.find((s) => s.id === activeSessionId)?.backendSessionId;
+                                  await axios.post(`${API_BASE}/v3/checkpoints/restore`, {
+                                    id: cp.id,
+                                    sessionId: backendId,
+                                    messageIndex: cp.messageIndex
+                                  });
+                                  if (cp.messageIndex != null) {
+                                    setMessages((prev) => prev.slice(0, cp.messageIndex));
+                                  }
+                                  onRefreshExplorer?.();
+                                } catch { /* ignore */ }
+                              }}
+                              style={{
+                                flexShrink: 0,
+                                background: 'rgba(16,185,129,0.15)',
+                                border: '1px solid rgba(16,185,129,0.35)',
+                                color: '#6ee7b7',
+                                borderRadius: '6px',
+                                padding: '2px 8px',
+                                fontSize: '10px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {t('checkpoint.restore')}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {pendingPlanImplement && !isLoading && (
+                      <button
+                        type="button"
+                        onClick={() => void handleImplementPlan()}
+                        style={{
+                          marginTop: '14px',
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                        }}
+                      >
+                        <Play size={14} /> {t('aiPanel.implementPlan')}
+                      </button>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -2158,6 +2781,55 @@ const AIPanel: React.FC<AIPanelProps> = ({
         )}
 
         <div style={{ position: 'relative', borderRadius: '16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.2), 0 8px 24px -8px rgba(0,0,0,0.5)', transition: 'all 0.3s ease' }}>
+          {matchedSkills.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 12px 0' }}>
+              <span style={{ fontSize: '10px', color: '#666', alignSelf: 'center' }}>{t('aiPanel.matchedSkills')}:</span>
+              {matchedSkills.map((s) => (
+                <span key={s.id} title={s.description} style={{
+                  fontSize: '10px', background: 'rgba(16,185,129,0.12)', color: '#6ee7b7',
+                  padding: '2px 8px', borderRadius: '999px', border: '1px solid rgba(16,185,129,0.25)'
+                }}>{s.name || s.id}</span>
+              ))}
+            </div>
+          )}
+          {mentionSearch !== null && searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '4px',
+              background: '#252525', border: '1px solid #444', borderRadius: '10px',
+              maxHeight: '200px', overflowY: 'auto', zIndex: 10, boxShadow: '0 -4px 20px rgba(0,0,0,0.4)'
+            }}>
+              {searchResults.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => selectMention(item)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px',
+                    background: 'transparent', border: 'none', color: '#ddd', fontSize: '13px',
+                    cursor: 'pointer', borderBottom: '1px solid #333'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.15)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {item.startsWith('@') ? item : `@${item}`}
+                </button>
+              ))}
+            </div>
+          )}
+          {contextFiles.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 12px 0' }}>
+              {contextFiles.map((f) => (
+                <span key={f.path} style={{
+                  fontSize: '11px', background: 'rgba(59,130,246,0.15)', color: '#93c5fd',
+                  padding: '2px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px'
+                }}>
+                  {f.path}
+                  <button type="button" onClick={() => setContextFiles((prev) => prev.filter((x) => x.path !== f.path))}
+                    style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             className="chat-input"
             rows={2}
@@ -2353,7 +3025,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
                 </div>
               )}
             </div>
-            <button onClick={isLoading ? stopGeneration : handleSendMessage} disabled={!prompt.trim() && !isLoading && uploadedAssets.length === 0}
+            <button onClick={isLoading ? stopGeneration : () => void handleSendMessage()} disabled={!prompt.trim() && !isLoading && uploadedAssets.length === 0}
               style={{ background: isLoading ? '#dc2626' : modeInfo.color, color: '#fff', border: 'none', width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: (!prompt.trim() && !isLoading && uploadedAssets.length === 0) ? 'not-allowed' : 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', opacity: (!prompt.trim() && !isLoading && uploadedAssets.length === 0) ? 0.4 : 1, boxShadow: isLoading ? '0 4px 12px rgba(220, 38, 38, 0.4)' : `0 4px 12px ${modeInfo.color}40` }}>
               {isLoading ? <StopCircle size={18} /> : <Send size={18} style={{ transform: 'translateX(1px)' }} />}
             </button>
@@ -2660,6 +3332,11 @@ const AIPanel: React.FC<AIPanelProps> = ({
       )}
 
       <ApprovalModal />
+      <CheckpointPanel
+        open={checkpointOpen}
+        onClose={() => setCheckpointOpen(false)}
+        onRestored={() => onRefreshExplorer?.()}
+      />
 
     </aside>
   );

@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "fa7.deep-research",
+  "name": "Deep Research Agent",
+  "version": "1.0.0",
+  "author": { "name": "FA7 Labs", "verified": true },
+  "category": "research",
+  "summary": "Multi-source web research with full-page fetch and cited synthesis.",
+  "description": "Decomposes a question, searches multiple sources, fetches full pages, and synthesizes a cited answer. Ships capability code that runs in the Skill sandbox and routes research through the Tool Layer.",
+  "systemPrompt": "./prompts/system.md",
+  "capability": "./run.js",
+  "recommendedModels": [
+    { "role": "plan", "provider": "ollama", "model": "qwen2.5" }
+  ],
+  "memoryScope": "task",
+  "eval": { "tests": "./eval/*.json", "passThreshold": 0.8 },
+  "permissions": {
+    "filesystem": "none",
+    "shell": { "allowlist": [] },
+    "network": ["duckduckgo.com", "html.duckduckgo.com"],
+    "mcp": [],
+    "secrets": []
+  },
+  "pricing": { "model": "free" }
+}

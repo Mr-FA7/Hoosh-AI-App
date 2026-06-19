@@ -277,3 +277,24 @@ body, html, #root {
 .fa7-refresh-spin {
   animation: fa7-spin 0.75s linear infinite;
 }
+
+.hoosh-nes-hint {
+  color: #6b7280 !important;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.hoosh-diff-add-line {
+  background: rgba(16, 185, 129, 0.18) !important;
+}
+
+.hoosh-diff-del-line {
+  background: rgba(239, 68, 68, 0.22) !important;
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.hoosh-diff-chg-line {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-left: 3px solid #3b82f6;
+}

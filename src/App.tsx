@@ -8,18 +8,22 @@ import ProposalUI from './components/ProposalUI';
 import EngineView from './components/EngineView';
 import TerminalView from './components/TerminalView';
 import BrowserView from './components/BrowserView';
+import ActivePreviewView from './components/ActivePreviewView';
 import UatView from './components/UatView';
 import VmLabView from './components/VmLabView';
 import MarketplaceView from './components/MarketplaceView';
 import SettingsView from './components/SettingsView';
+import GitPanel from './components/GitPanel';
 import ProjectSelector from './components/ProjectSelector';
 import BottomBar from './components/BottomBar';
+import ProblemsPanel from './components/ProblemsPanel';
 import axios from 'axios';
 import { API_BASE } from './apiBase';
 import type { WorkspaceTab } from './types/workspaceTab';
 import { newWorkspaceTabId } from './types/workspaceTab';
 import { useI18n } from './i18n/LocaleContext';
 import { isDesktopShell } from './lib/pythonBridge';
+import { wireExtensionKeybindings, loadExtensionKeybindings } from './lib/extensionKeybindings';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -57,12 +61,42 @@ const App: React.FC = () => {
   const [content, setContent] = useState<string>('');
   const [currentMissionName, setCurrentMissionName] = useState<string | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
+  const [missionDiffZone, setMissionDiffZone] = useState<{ fileName: string; original: string; proposed: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<
-    'editor' | 'engine' | 'terminal' | 'vmlab' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings'
+    'editor' | 'engine' | 'terminal' | 'vmlab' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
   >('editor');
+  const [problemCounts, setProblemCounts] = useState({ errors: 0, warnings: 0 });
   const [kavoshNavigateUrl, setKavoshNavigateUrl] = useState<string | null>(null);
-  const [currentTheme, setCurrentTheme] = useState('vs-dark');
+  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('fa7_editor_theme') || 'vs-dark');
+
+  useEffect(() => {
+    const refreshProblems = async () => {
+      try {
+        const r = await axios.get(`${API_BASE}/v3/context/problems/list`);
+        const markers = r.data?.markers || [];
+        setProblemCounts({
+          errors: markers.filter((m: { severity: number }) => m.severity === 8).length,
+          warnings: markers.filter((m: { severity: number }) => m.severity === 4).length
+        });
+      } catch { /* ignore */ }
+    };
+    void refreshProblems();
+    const id = setInterval(refreshProblems, 5000);
+    window.addEventListener('fa7-problems-updated', refreshProblems);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('fa7-problems-updated', refreshProblems);
+    };
+  }, [projectRoot]);
+
+  useEffect(() => {
+    localStorage.setItem('fa7_editor_theme', currentTheme);
+    const monaco = (window as any).monaco;
+    if (monaco?.editor?.setTheme && currentTheme !== 'custom-ext-theme') {
+      try { monaco.editor.setTheme(currentTheme); } catch { /* monaco not ready */ }
+    }
+  }, [currentTheme]);
   /** Bumps when file tree is refetched so FileExplorer drops stale per-folder cache without collapsing the root. */
   const [explorerSyncKey, setExplorerSyncKey] = useState(0);
 
@@ -88,6 +122,12 @@ const App: React.FC = () => {
       setExplorerSyncKey((k) => k + 1);
     }
   }, []);
+
+  useEffect(() => {
+    if (!projectRoot) return;
+    wireExtensionKeybindings();
+    void loadExtensionKeybindings();
+  }, [projectRoot]);
 
   useEffect(() => {
     setIsDesktop(isDesktopShell());
@@ -172,6 +212,12 @@ const App: React.FC = () => {
       console.error('Failed to read file', err);
     }
   };
+
+  const handleProblemOpen = useCallback(async (relPath: string, line: number, column = 1) => {
+    setViewMode('editor');
+    await handleFileSelect(relPath);
+    window.dispatchEvent(new CustomEvent('fa7-goto-line', { detail: { line, column } }));
+  }, [handleFileSelect]);
 
   const handleWorkspaceTabSelect = (idx: number) => {
     setActiveTabIndex(idx);
@@ -405,16 +451,23 @@ const App: React.FC = () => {
                         }
                         onOpenDownloadWorkspace={() => openDownloadWorkspaceTab()}
                         onOpenTerminalWorkspace={() => openTerminalWorkspaceTab()}
+                        missionDiffZone={missionDiffZone?.fileName === activeFile ? missionDiffZone : null}
+                        onClearMissionDiffZone={() => setMissionDiffZone(null)}
                       />
                     )}
                     {viewMode === 'engine' && <EngineView />}
                     {viewMode === 'terminal' && <TerminalView />}
                     {viewMode === 'vmlab' && <VmLabView />}
                     {viewMode === 'browser' && <BrowserView navigateUrl={kavoshNavigateUrl} onNavigateUrlConsumed={() => setKavoshNavigateUrl(null)} />}
+                    {viewMode === 'preview' && <ActivePreviewView projectRoot={projectRoot} />}
                     {viewMode === 'marketplace' && <MarketplaceView onThemeApplied={(themeName) => setCurrentTheme(themeName)} />}
                     {viewMode === 'uat' && <UatView />}
+                    {viewMode === 'git' && <GitPanel />}
+                    {viewMode === 'problems' && (
+                      <ProblemsPanel onOpenLocation={(p, line, col) => { void handleProblemOpen(p, line, col); }} />
+                    )}
                     {viewMode === 'settings' && (
-                      <div style={{ height: '100%', overflow: 'auto' }}>
+                      <div style={{ height: '100%', overflow: 'auto', overscrollBehavior: 'contain' }}>
                         <div style={{ padding: '14px 20px 0' }}>
                           <button
                             onClick={() => (projectRoot ? void handleCloseProject() : setViewMode('editor'))}
@@ -431,7 +484,7 @@ const App: React.FC = () => {
                             {projectRoot ? t('app.switchProject') : t('app.backToSelector')}
                           </button>
                         </div>
-                        <SettingsView />
+                        <SettingsView onThemeChange={setCurrentTheme} currentTheme={currentTheme} />
                       </div>
                     )}
                   </motion.div>
@@ -451,11 +504,27 @@ const App: React.FC = () => {
             onOpenEditorTerminalTab={(opts) => openTerminalWorkspaceTab(opts)}
             onOpenEditorAgentTab={(opts) => openAgentWorkspaceTab(opts)}
             onOpenEditorDownloadTab={(opts) => openDownloadWorkspaceTab(opts)}
+            onProposals={(incoming) => {
+              if (!incoming || incoming.length === 0) return;
+              setProposals((prev) => {
+                const next = [...prev];
+                for (const p of incoming) {
+                  const idx = next.findIndex((x) => x.fileName === p.fileName);
+                  if (idx >= 0) next[idx] = { ...next[idx], ...p };
+                  else next.push(p);
+                }
+                return next;
+              });
+            }}
+            onMissionDiffZone={(proposal) => setMissionDiffZone(proposal)}
           />
         </div>
   
         <BottomBar 
           status={currentMissionName || t('app.systemReady')} 
+          errors={problemCounts.errors}
+          warnings={problemCounts.warnings}
+          onProblemsClick={() => setViewMode('problems')}
           language={
             activeFile
               ? activeFile.split('.').pop()?.toUpperCase()

@@ -215,9 +215,15 @@ class ResourceManager {
     }
 
     buildInputFromTask(task) {
+        const safeTask = task && typeof task === 'object' ? task : {};
+        const normalizedTask = {
+            ...safeTask,
+            priority: safeTask.priority || 'medium',
+            latency_sensitive: typeof safeTask.latency_sensitive === 'boolean' ? safeTask.latency_sensitive : false
+        };
         const stats = this.getHardwareStats();
         return {
-            task,
+            task: normalizedTask,
             hardware: stats.hardware,
             system_load: stats.system_load
         };

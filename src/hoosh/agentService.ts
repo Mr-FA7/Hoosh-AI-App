@@ -178,6 +178,7 @@ export async function startMissionStream(
     onTextChunk: (text: string) => void;
     onAgentEvent?: (ev: AgentKernelEvent | null) => void;
     onComplete?: () => void;
+    onStreamId?: (id: string) => void;
   }
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/v3/mission`, {
@@ -191,6 +192,9 @@ export async function startMissionStream(
     const errText = await res.text().catch(() => '');
     throw new Error(errText || `Mission failed: ${res.status}`);
   }
+
+  const streamId = res.headers.get('x-stream-id') || res.headers.get('X-Stream-Id');
+  if (streamId) opts.onStreamId?.(streamId);
 
   await consumeNdjsonStream(res, {
     signal: opts.signal,
@@ -208,6 +212,9 @@ export interface ChatStreamRequestBody {
   model: string;
   mode: string;
   allowedModels: string[];
+  sessionId?: string;
+  useAcp?: boolean;
+  acpBackend?: string;
 }
 
 /**
@@ -223,6 +230,7 @@ export async function runChatStream(
       agentEvent: AgentKernelEvent | null;
       raw: unknown;
     }) => void;
+    onStreamId?: (id: string) => void;
   }
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/ai/chat`, {
@@ -236,6 +244,9 @@ export async function runChatStream(
     const errText = await res.text().catch(() => '');
     throw new Error(errText || `Chat request failed: ${res.status}`);
   }
+
+  const streamId = res.headers.get('x-stream-id') || res.headers.get('X-Stream-Id');
+  if (streamId) opts.onStreamId?.(streamId);
 
   await consumeNdjsonStream(res, {
     signal: opts.signal,

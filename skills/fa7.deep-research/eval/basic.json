@@ -1,0 +1,8 @@
+{
+  "name": "deep-research-basics",
+  "cases": [
+    { "name": "requires citations", "assert": "systemPromptContains", "value": "[n]" },
+    { "name": "no filesystem", "assert": "filesystemScopeEquals", "value": "none" },
+    { "name": "network scoped to ddg", "assert": "networkEquals", "value": ["duckduckgo.com", "html.duckduckgo.com"] }
+  ]
+}

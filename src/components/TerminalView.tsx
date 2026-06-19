@@ -6,6 +6,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import { Monitor, Plus, X, Search, Bot, User } from 'lucide-react';
 import { API_BASE as API } from '../apiBase';
+import { appendTerminalBuffer, publishTerminalState } from '../lib/terminalContextSync';
 
 type ShellMode = 'system' | 'isolated';
 type PtyPurpose = 'ai' | 'user';
@@ -31,6 +32,8 @@ const TerminalPane: React.FC<{
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const bufferRef = useRef('');
+  const sessionNameRef = useRef<string | undefined>(undefined);
   const [status, setStatus] = useState('');
   const [cwdHint, setCwdHint] = useState('');
   const [searchQ, setSearchQ] = useState('');
@@ -90,6 +93,9 @@ const TerminalPane: React.FC<{
 
     ws.onopen = () => {
       const { cols, rows } = term;
+      const agentSession = purpose === 'ai' ? localStorage.getItem('hoosh_agent_terminal_session') : null;
+      const sessionName = agentSession ? `agent-${agentSession}` : undefined;
+      sessionNameRef.current = sessionName;
       ws.send(
         JSON.stringify({
           type: 'init',
@@ -97,7 +103,8 @@ const TerminalPane: React.FC<{
           purpose,
           cwd: shellInfo.defaultCwd,
           cols,
-          rows
+          rows,
+          sessionName
         })
       );
       setStatus('Connecting…');
@@ -105,9 +112,20 @@ const TerminalPane: React.FC<{
 
     const dec = new TextDecoder('utf-8', { fatal: false });
 
+    const writeChunk = (chunk: string) => {
+      term.write(chunk);
+      bufferRef.current = appendTerminalBuffer(bufferRef.current, chunk);
+      publishTerminalState({
+        buffer: bufferRef.current,
+        selection: term.getSelection() || '',
+        purpose,
+        sessionName: sessionNameRef.current
+      });
+    };
+
     ws.onmessage = (ev) => {
       if (ev.data instanceof ArrayBuffer) {
-        term.write(dec.decode(new Uint8Array(ev.data)));
+        writeChunk(dec.decode(new Uint8Array(ev.data)));
         return;
       }
       try {
@@ -135,6 +153,15 @@ const TerminalPane: React.FC<{
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'input', data }));
       }
+    });
+
+    term.onSelectionChange(() => {
+      publishTerminalState({
+        buffer: bufferRef.current,
+        selection: term.getSelection() || '',
+        purpose,
+        sessionName: sessionNameRef.current
+      });
     });
   }, [mode, purpose, shellInfo]);
 

@@ -1,0 +1,31 @@
+{
+  "scopeName": "source.js",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.js", "match": "//.*$" },
+        { "name": "comment.block.js", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double.js", "begin": "\"", "end": "\"" },
+        { "name": "string.quoted.single.js", "begin": "'", "end": "'" },
+        { "name": "string.quoted.template.js", "begin": "`", "end": "`" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.js",
+          "match": "\\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this)\\b"
+        }
+      ]
+    }
+  }
+}

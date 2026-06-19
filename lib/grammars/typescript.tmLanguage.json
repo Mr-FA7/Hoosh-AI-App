@@ -1,0 +1,31 @@
+{
+  "scopeName": "source.ts",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.ts", "match": "//.*$" },
+        { "name": "comment.block.ts", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double.ts", "begin": "\"", "end": "\"" },
+        { "name": "string.quoted.single.ts", "begin": "'", "end": "'" },
+        { "name": "string.quoted.template.ts", "begin": "`", "end": "`" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ts",
+          "match": "\\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|interface|type|enum|namespace|public|private|protected|readonly)\\b"
+        }
+      ]
+    }
+  }
+}

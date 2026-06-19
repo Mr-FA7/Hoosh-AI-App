@@ -1,0 +1,8 @@
+{
+  "scopeName": "source.json",
+  "patterns": [
+    { "name": "string.quoted.double.json", "match": "\"(?:\\\\.|[^\"\\\\])*\"" },
+    { "name": "constant.language.json", "match": "\\b(true|false|null)\\b" },
+    { "name": "constant.numeric.json", "match": "\\b-?\\d+(?:\\.\\d+)?\\b" }
+  ]
+}

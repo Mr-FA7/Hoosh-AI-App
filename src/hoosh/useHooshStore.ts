@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { AgentKernelEvent, CognitiveLogEntry, HooshAgentRole } from './types';
-import { extractToolJsonAfterPrefix, startMissionStream } from './agentService';
+import { extractToolJsonAfterPrefix, startMissionStream, consumeNdjsonStream } from './agentService';
+import { API_BASE } from '../apiBase';
+import axios from 'axios';
 
 const TAG_RE = /\[(reading|thinking|planning|searching|executing|terminal|writing|rewriting|ask|done|error)\]/gi;
 
@@ -100,7 +102,7 @@ export interface HooshState {
   processStreamText: (text: string) => void;
   ingestAgentEvent: (ev: AgentKernelEvent | null) => void;
   abortMission: () => void;
-  resolveAsk: (userInput: string) => void;
+  resolveAsk: (userInput: string) => Promise<void>;
 }
 
 export const useHooshStore = create<HooshState>((set, get) => ({
@@ -145,6 +147,9 @@ export const useHooshStore = create<HooshState>((set, get) => ({
       await startMissionStream(goal, {
         projectName,
         signal: ac.signal,
+        onStreamId: (id) => {
+          (globalThis as unknown as { __fa7LastStreamId?: string }).__fa7LastStreamId = id;
+        },
         onTextChunk: (chunk) => get().processStreamText(chunk),
         onAgentEvent: (ev) => get().ingestAgentEvent(ev),
         onComplete: () => set({ isStreaming: false, abortController: null })
@@ -184,6 +189,14 @@ export const useHooshStore = create<HooshState>((set, get) => ({
       const task = (ev as Record<string, unknown>).task;
       if (typeof task === 'string') {
         get().processStreamText(`\n[executing] ${task}\n`);
+      }
+      return;
+    }
+    if (t === 'ask') {
+      const q = String((ev as Record<string, unknown>).question || (ev as Record<string, unknown>).message || '');
+      if (q) {
+        set({ isPaused: true, askQuestion: q });
+        get().processStreamText(`\n[ask] ${q}\n`);
       }
       return;
     }
@@ -279,10 +292,14 @@ export const useHooshStore = create<HooshState>((set, get) => ({
     const s = get();
     const ac = s.abortController;
     const missionActive = s.isStreaming;
+    const streamId = (globalThis as unknown as { __fa7LastStreamId?: string }).__fa7LastStreamId;
     try {
       ac?.abort();
     } catch {
       /* ignore */
+    }
+    if (missionActive) {
+      axios.post(`${API_BASE}/ai/chat/abort`, streamId ? { streamId } : {}).catch(() => {});
     }
     if (!missionActive) {
       set({ isStreaming: false, abortController: null });
@@ -303,9 +320,32 @@ export const useHooshStore = create<HooshState>((set, get) => ({
     });
   },
 
-  resolveAsk: (userInput) => {
-    set({ isPaused: false, askQuestion: null });
-    // Backend resume hook: POST /api/v3/mission/continue — body: { reply: userInput }
-    void userInput;
+  resolveAsk: async (userInput) => {
+    set({ isPaused: false, askQuestion: null, isStreaming: true });
+    const ac = new AbortController();
+    set({ abortController: ac });
+    try {
+      const res = await fetch(`${API_BASE}/v3/mission/continue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply: userInput }),
+        signal: ac.signal
+      });
+      if (!res.ok) throw new Error(`Resume failed: ${res.status}`);
+      await consumeNdjsonStream(res, {
+        signal: ac.signal,
+        onLine: ({ text, agentEvent }) => {
+          if (agentEvent) get().ingestAgentEvent(agentEvent);
+          if (text) get().processStreamText(text);
+        }
+      });
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        const msg = e instanceof Error ? e.message : String(e);
+        get().processStreamText(`\n[error] ${msg}\n`);
+      }
+    } finally {
+      set({ isStreaming: false, abortController: null });
+    }
   }
 }));

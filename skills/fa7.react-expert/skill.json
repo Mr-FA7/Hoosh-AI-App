@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 1,
+  "id": "fa7.react-expert",
+  "name": "React Expert",
+  "version": "1.0.0",
+  "author": { "name": "FA7 Labs", "verified": true },
+  "category": "coding",
+  "summary": "Expert React + TypeScript: components, hooks, state, and Vite tooling.",
+  "description": "Turns Hoosh into a React specialist — modern function components, hooks, accessible markup, and Vite-based tooling. Routes all shell/file actions through the Tool Layer.",
+  "systemPrompt": "./prompts/system.md",
+  "recommendedModels": [
+    { "role": "plan", "provider": "ollama", "model": "qwen2.5-coder" },
+    { "role": "completion", "provider": "ollama", "model": "qwen2.5-coder" }
+  ],
+  "knowledgeBase": [
+    { "source": "https://react.dev", "type": "docs", "refresh": "weekly" }
+  ],
+  "subAgents": ["coding", "debug", "test"],
+  "memoryScope": "project",
+  "eval": { "tests": "./eval/*.json", "passThreshold": 0.8 },
+  "permissions": {
+    "filesystem": "workspace-only",
+    "shell": { "allowlist": ["npm", "npx", "pnpm", "yarn", "vite", "node"] },
+    "network": ["react.dev"],
+    "mcp": [],
+    "secrets": []
+  },
+  "pricing": { "model": "free" }
+}

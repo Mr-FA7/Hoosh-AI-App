@@ -42,10 +42,7 @@ Name: "autostart"; Description: "Start companion when Windows starts"; GroupDesc
 Source: "{#StagingDir}\node\*"; DestDir: "{app}\node"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StagingDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StagingDir}\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\win\*.cmd"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StagingDir}\win\*.vbs"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StagingDir}\win\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StagingDir}\win\*.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\win\*"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Open aihoosh.com with local bridge"

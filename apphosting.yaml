@@ -12,10 +12,6 @@ scripts:
   buildCommand: npm run build
   runCommand: node server.js
 
-outputFiles:
-  serverApp:
-    include: [dist, server.js]
-
 env:
   - variable: NODE_ENV
     value: production

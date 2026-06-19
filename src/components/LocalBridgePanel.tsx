@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, Plug, RefreshCw, CheckCircle2, Circle, ExternalLink } from 'lucide-react';
+import { Download, Plug, RefreshCw, CheckCircle2, Circle, Monitor } from 'lucide-react';
 import { useI18n } from '../i18n/LocaleContext';
 import { checkBridgeSetup, resetCompanionProbeCache } from '../lib/companionProbe';
 import { isHostedWebApp } from '../runtimeEnv';
-
-const REPO = 'https://github.com/Mr-FA7/Hoosh-AI-App';
 
 type Props = {
   onConnected?: () => void;
@@ -41,6 +39,23 @@ const LocalBridgePanel: React.FC<Props> = ({ onConnected }) => {
   const dot = (ok: boolean) =>
     ok ? <CheckCircle2 size={14} color="hsl(142 71% 45%)" /> : <Circle size={14} color="hsl(var(--text-secondary))" />;
 
+  const btn = (href: string, label: string, primary = false) => (
+    <a
+      href={href}
+      download
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
+        borderRadius: '8px',
+        background: primary ? 'hsl(var(--accent))' : 'transparent',
+        border: primary ? 'none' : '1px solid hsl(var(--border))',
+        color: primary ? '#fff' : 'hsl(var(--text-primary))',
+        fontSize: '12px', fontWeight: primary ? 600 : 500, textDecoration: 'none',
+      }}
+    >
+      <Download size={14} /> {label}
+    </a>
+  );
+
   return (
     <div style={{
       marginBottom: '18px',
@@ -61,50 +76,34 @@ const LocalBridgePanel: React.FC<Props> = ({ onConnected }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(companion)} {t('bridge.stepCompanion')}</div>
       </div>
 
+      <p style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>
+        <Monitor size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+        {t('bridge.oneClickTitle')}
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+        {btn('/hoosh-bridge-setup-win.zip', t('bridge.downloadWin'), true)}
+        {btn('/hoosh-bridge-setup-mac.zip', t('bridge.downloadMac'))}
+        {btn('/hoosh-local-bridge.zip', t('bridge.downloadExtensionOnly'))}
+      </div>
+
       <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
-        <li>{t('bridge.installCompanion')}</li>
-        <li><code style={{ background: 'hsl(0 0% 0% / 0.35)', padding: '2px 6px', borderRadius: '4px' }}>npm run bridge</code></li>
-        <li>{t('bridge.installExtension')}</li>
-        <li>{t('bridge.reloadSite')}</li>
+        <li>{t('bridge.step1Launcher')}</li>
+        <li>{t('bridge.step2Extension')}</li>
+        <li>{t('bridge.step3Reload')}</li>
       </ol>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-        <a
-          href={`${REPO}/tree/main/extensions/hoosh-local-bridge`}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-            borderRadius: '8px', background: 'hsl(var(--accent))', color: '#fff',
-            fontSize: '12px', fontWeight: 600, textDecoration: 'none',
-          }}
-        >
-          <Download size={14} /> {t('bridge.downloadExtension')}
-        </a>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={checking}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-            borderRadius: '8px', border: '1px solid hsl(var(--border))', background: 'transparent',
-            color: 'hsl(var(--text-primary))', fontSize: '12px', cursor: 'pointer',
-          }}
-        >
-          <RefreshCw size={14} /> {checking ? t('bridge.checking') : t('bridge.recheck')}
-        </button>
-        <a
-          href={`${REPO}#readme`}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '8px 10px',
-            fontSize: '11px', color: 'hsl(var(--accent))',
-          }}
-        >
-          {t('bridge.docs')} <ExternalLink size={12} />
-        </a>
-      </div>
+      <button
+        type="button"
+        onClick={() => void refresh()}
+        disabled={checking}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
+          borderRadius: '8px', border: '1px solid hsl(var(--border))', background: 'transparent',
+          color: 'hsl(var(--text-primary))', fontSize: '12px', cursor: 'pointer',
+        }}
+      >
+        <RefreshCw size={14} /> {checking ? t('bridge.checking') : t('bridge.recheck')}
+      </button>
 
       {companion && (
         <p style={{ marginTop: '10px', fontSize: '11px', color: 'hsl(142 71% 45%)', fontWeight: 600 }}>

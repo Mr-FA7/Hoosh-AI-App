@@ -8,6 +8,8 @@
     "companion": "nodemon companion.js",
     "companion:fresh": "FA7_PORT=3011 node companion.js",
     "bridge": "node companion.js",
+    "bridge:pack": "node scripts/package-bridge-extension.mjs",
+    "prebuild": "npm run bridge:pack",
     "start": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview",

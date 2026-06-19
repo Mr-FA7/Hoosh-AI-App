@@ -1,4 +1,6 @@
-/** Companion API base — dev uses Vite proxy; web uses same-origin; desktop may override. */
+/** Companion API base — resolved from runtime (dev proxy, local companion, hosted web). */
+
+import { getRuntimeEnvSync, isHostedWebApp, isLocalDevWeb } from './runtimeEnv';
 
 function normalizeBase(raw: string): string {
   return raw.replace(/\/$/, '');
@@ -24,10 +26,8 @@ function resolveApiBase(): string {
   if (import.meta.env.DEV) return '/api';
 
   if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3001/api';
-    }
+    if (isHostedWebApp()) return '/api';
+    if (isLocalDevWeb()) return 'http://localhost:3001/api';
     return '/api';
   }
 
@@ -35,3 +35,8 @@ function resolveApiBase(): string {
 }
 
 export const API_BASE = resolveApiBase();
+
+/** Whether API calls should target a local companion backend. */
+export function expectsCompanionBackend(): boolean {
+  return getRuntimeEnvSync().usesCompanionApi;
+}

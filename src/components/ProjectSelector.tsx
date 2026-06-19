@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE as API } from '../apiBase';
 import { browseFolderPath } from '../lib/browseFolder';
-import { prefersBrowserFolderPicker } from '../platform';
+import { useRuntimeEnv } from '../hooks/useRuntimeEnv';
 import { listRecentWebProjects } from '../lib/webWorkspace';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -30,6 +30,7 @@ declare global {
 
 const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSettings }) => {
   const { t: tx, locale } = useI18n();
+  const runtime = useRuntimeEnv();
   const [tab, setTab] = useState<Tab>('open');
   const [path, setPath] = useState('');
   const [isError, setIsError] = useState(false);
@@ -158,6 +159,21 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
             Hoosh <span style={{ color: 'hsl(var(--accent))' }}>v7.0</span>
           </h1>
           <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '12px' }}>{tx('project.tagline')}</p>
+          <div style={{
+            marginTop: '10px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            border: '1px solid hsl(var(--accent) / 0.35)',
+            background: 'hsl(var(--accent) / 0.1)',
+            color: 'hsl(var(--accent))',
+            fontSize: '11px',
+            fontWeight: 600,
+          }}>
+            <Laptop size={12} /> {tx(runtime.labelKey)}
+          </div>
           <div style={{ marginTop: '14px' }}>
             <LanguageSwitcher compact />
           </div>
@@ -229,9 +245,9 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
                     <BrowseBtn onClick={() => browseFolder(setPath)} />
                   </div>
                   {isError && <p style={{ color: 'hsl(0 100% 60%)', fontSize: '11px', marginBottom: '10px' }}>{tx('project.pathError')}</p>}
-                  {prefersBrowserFolderPicker() && (
+                  {runtime.usesWebWorkspace && (
                     <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '11px', marginBottom: '10px' }}>
-                      {tx('project.browseMobileHint')}
+                      {tx(runtime.browseHintKey)}
                     </p>
                   )}
                   <button className="btn-primary" onClick={handleOpen}
@@ -293,8 +309,8 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
           </AnimatePresence>
         </div>
 
-        <div style={{ padding: '10px 24px 14px', display: 'flex', justifyContent: 'space-between', opacity: 0.4, fontSize: '11px', borderTop: '1px solid hsl(var(--border) / 0.2)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Laptop size={11} /> {tx('project.footerLocal')}</span>
+        <div style={{ padding: '10px 24px 14px', display: 'flex', justifyContent: 'space-between', opacity: 0.55, fontSize: '11px', borderTop: '1px solid hsl(var(--border) / 0.2)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Laptop size={11} /> {tx(runtime.labelKey)}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Rocket size={11} /> {tx('project.footerAutonomous')}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><ShieldCheck size={11} /> {tx('project.footerSecure')}</span>
         </div>

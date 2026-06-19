@@ -23,6 +23,7 @@ import ProblemsPanel from './components/ProblemsPanel';
 import axios from 'axios';
 import { API_BASE } from './apiBase';
 import { fetchProjectFiles, fetchFileContent, saveFileContent, switchProject } from './lib/workspaceApi';
+import { getRuntimeEnv } from './lib/companionProbe';
 import { isWebProjectRoot } from './lib/webWorkspace';
 import type { WorkspaceTab } from './types/workspaceTab';
 import { newWorkspaceTabId } from './types/workspaceTab';
@@ -133,17 +134,19 @@ const App: React.FC = () => {
   useEffect(() => {
     setIsDesktop(isDesktopShell());
     (window as any).setProposals = setProposals;
-    // Check if there is an active project root in the companion
-    axios.get(`${API_BASE}/v3/project/path`)
-      .then(res => {
-        if (res.data?.path) {
-          setProjectRoot(res.data.path);
-          fetchFiles();
-        }
-      })
-      .catch((err) => {
-        console.warn('[App] Failed to fetch initial project root:', err);
-      });
+    void getRuntimeEnv().then((env) => {
+      if (!env.usesCompanionApi) return;
+      axios.get(`${API_BASE}/v3/project/path`)
+        .then(res => {
+          if (res.data?.path) {
+            setProjectRoot(res.data.path);
+            fetchFiles();
+          }
+        })
+        .catch((err) => {
+          console.warn('[App] Failed to fetch initial project root:', err);
+        });
+    });
   }, [fetchFiles]);
 
   /** Keep explorer in sync after external deletes (Finder, terminal, etc.) */
@@ -352,8 +355,11 @@ const App: React.FC = () => {
 
   const handleCloseProject = async () => {
     try {
-      if (!isWebProjectRoot(projectRoot)) {
-        await axios.post(`${API_BASE}/v3/project/close`);
+      if (projectRoot && !isWebProjectRoot(projectRoot)) {
+        const env = await getRuntimeEnv();
+        if (env.usesCompanionApi) {
+          await axios.post(`${API_BASE}/v3/project/close`);
+        }
       }
       setProjectRoot(null);
       setFiles([]);

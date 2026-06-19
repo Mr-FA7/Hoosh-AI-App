@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE } from '../apiBase';
-import { isLocalCompanionWeb } from '../platform';
+import { getRuntimeEnv } from './companionProbe';
 import { pickFolderFromBrowser } from './pickFolder';
 import { importFolderFromFileList } from './webWorkspace';
 
@@ -41,7 +41,9 @@ async function tryCompanionFolderPicker(): Promise<BrowseFolderResult | null> {
 }
 
 export async function browseFolderPath(): Promise<BrowseFolderResult> {
-  if (window.electronAPI?.openFolder) {
+  const env = await getRuntimeEnv();
+
+  if (env.surface === 'electron' && window.electronAPI?.openFolder) {
     try {
       const result = await window.electronAPI.openFolder();
       if (result?.canceled) return { ok: false, canceled: true };
@@ -52,9 +54,19 @@ export async function browseFolderPath(): Promise<BrowseFolderResult> {
     }
   }
 
-  if (isLocalCompanionWeb()) {
+  if (env.usesCompanionApi) {
     const companion = await tryCompanionFolderPicker();
     if (companion) return companion;
+  }
+
+  if (env.usesWebWorkspace || env.isMobile) {
+    const browser = await importFromBrowserPicker();
+    if (browser.ok || browser.canceled) return browser;
+    return {
+      ok: false,
+      errorKey: 'project.folderPickerFailed',
+      detail: browser.detail,
+    };
   }
 
   const browser = await importFromBrowserPicker();

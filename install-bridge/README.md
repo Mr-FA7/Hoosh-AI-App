@@ -1,28 +1,30 @@
-# Hoosh Local Bridge — one-click setup
+# Hoosh Local Bridge — Windows installer
 
-Connect **https://aihoosh.com** to your computer (files, terminal, Ollama, LM Studio, Alma).
+## For users
 
-## Quick start
+Download **`HooshBridgeSetup.exe`** from [aihoosh.com](https://aihoosh.com) (Connect to your computer panel) or from `public/HooshBridgeSetup.exe` in this repo.
 
-### Windows
-Double-click **`Start-Hoosh-Bridge.bat`** (or run `Start-Hoosh-Bridge.ps1`).
+Double-click the installer. It will:
 
-### macOS
-Double-click **`Start-Hoosh-Bridge.command`**.  
-If blocked: Terminal → `chmod +x install-bridge/Start-Hoosh-Bridge.command`
+1. Install to `%LOCALAPPDATA%\Programs\Hoosh Bridge`
+2. Bundle Node.js and the Hoosh companion (no separate Node/git install)
+3. Install the Chrome extension files and launch Chrome with the bridge
+4. Create Start Menu + optional desktop shortcut
+5. Optionally start companion when Windows starts
 
-## What the launcher does
+After install, use the **Hoosh Local Bridge** shortcut to open aihoosh.com with your PC connected.
 
-1. Runs `npm install` on first use
-2. Opens **aihoosh.com** and **chrome://extensions**
-3. Shows the extension zip / folder
-4. Starts **companion** on `http://127.0.0.1:3001` (keep the window open)
+## Build the installer (developers)
 
-## Install the browser extension
+```bash
+npm install
+npm run bridge:installer:win
+```
 
-1. Download **`hoosh-local-bridge.zip`** from [aihoosh.com/hoosh-local-bridge.zip](https://aihoosh.com/hoosh-local-bridge.zip) or unzip from `public/` after `npm run bridge:pack`
-2. Unzip to a folder
-3. Chrome → Extensions → Developer mode → **Load unpacked** → select that folder
-4. Refresh aihoosh.com → **Connect to your computer** should show green
+Output: `public/HooshBridgeSetup.exe`
 
-Nothing is uploaded to Firebase — traffic stays **browser → extension → your PC**.
+Requires network on first build (downloads portable Node 20). Staging runs `npm ci --omit=dev` inside the installer bundle.
+
+## Legacy zip launcher
+
+`hoosh-bridge-setup-win.zip` still works but requires Node.js and git on first run.

@@ -81,14 +81,14 @@ const LocalBridgePanel: React.FC<Props> = ({ onConnected }) => {
         {t('bridge.oneClickTitle')}
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-        {btn('/hoosh-bridge-setup-win.zip', t('bridge.downloadWin'), true)}
+        {btn('/HooshBridgeSetup.exe', t('bridge.downloadWinExe'), true)}
+        {btn('/hoosh-bridge-setup-win.zip', t('bridge.downloadWin'))}
         {btn('/hoosh-bridge-setup-mac.zip', t('bridge.downloadMac'))}
         {btn('/hoosh-local-bridge.zip', t('bridge.downloadExtensionOnly'))}
       </div>
 
       <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
-        <li>{t('bridge.step1Launcher')}</li>
-        <li>{t('bridge.step2Extension')}</li>
+        <li>{t('bridge.step1Installer')}</li>
         <li>{t('bridge.step3Reload')}</li>
       </ol>
 

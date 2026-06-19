@@ -45,6 +45,7 @@ function main() {
   );
 
   console.log('Downloads will be served at:');
+  console.log('  /HooshBridgeSetup.exe   (Windows installer — recommended)');
   console.log('  /hoosh-local-bridge.zip');
   console.log('  /hoosh-bridge-setup-win.zip');
   console.log('  /hoosh-bridge-setup-mac.zip');

@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { API_BASE } from '../apiBase';
+import { companionGet } from './companionHttp';
 import { getRuntimeEnv } from './companionProbe';
+import { isHostedWebApp } from '../runtimeEnv';
 import { pickFolderFromBrowser } from './pickFolder';
 import { importFolderFromFileList } from './webWorkspace';
 
@@ -34,7 +36,9 @@ async function importFromBrowserPicker(): Promise<BrowseFolderResult> {
 
 async function tryCompanionFolderPicker(): Promise<BrowseFolderResult | null> {
   try {
-    const r = await axios.get(`${API_BASE}/dialog/open-folder`, { timeout: 8000 });
+    const r = isHostedWebApp()
+      ? await companionGet('/api/dialog/open-folder')
+      : await axios.get(`${API_BASE}/dialog/open-folder`, { timeout: 8000 });
     if (r.data?.ok && !r.data.canceled && r.data.path) {
       return { ok: true, path: String(r.data.path) };
     }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE, expectsCompanionBackend } from '../apiBase';
+import { companionGet, companionPost } from './companionHttp';
 import { getRuntimeEnv } from './companionProbe';
 import { isWebProjectRoot, activateWebProject, listWebFiles, readWebFile, writeWebFile } from './webWorkspace';
 
@@ -17,7 +17,7 @@ export async function switchProject(path: string): Promise<void> {
     return;
   }
   if (!(await shouldUseWebWorkspace(path))) {
-    await axios.post(`${API_BASE}/v3/project/switch`, { path });
+    await companionPost('/api/v3/project/switch', { path });
   }
 }
 
@@ -25,10 +25,11 @@ export async function fetchProjectFiles(path?: string, projectRoot?: string | nu
   if (projectRoot && isWebProjectRoot(projectRoot)) {
     return listWebFiles(path);
   }
-  if (!expectsCompanionBackend()) {
+  const env = await getRuntimeEnv();
+  if (env.usesWebWorkspace && !env.usesCompanionApi) {
     return listWebFiles(path);
   }
-  const res = await axios.get(`${API_BASE}/files`, {
+  const res = await companionGet('/api/files', {
     params: path ? { path } : { _: Date.now() },
     headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
   });
@@ -39,10 +40,11 @@ export async function fetchFileContent(path: string, projectRoot?: string | null
   if (projectRoot && isWebProjectRoot(projectRoot)) {
     return readWebFile(path);
   }
-  if (!expectsCompanionBackend()) {
+  const env = await getRuntimeEnv();
+  if (env.usesWebWorkspace && !env.usesCompanionApi) {
     return readWebFile(path);
   }
-  const res = await axios.get(`${API_BASE}/file`, { params: { path } });
+  const res = await companionGet<{ content?: string }>('/api/file', { params: { path } });
   return String(res.data?.content ?? '');
 }
 
@@ -51,9 +53,10 @@ export async function saveFileContent(path: string, content: string, projectRoot
     writeWebFile(path, content);
     return;
   }
-  if (!expectsCompanionBackend()) {
+  const env = await getRuntimeEnv();
+  if (env.usesWebWorkspace && !env.usesCompanionApi) {
     writeWebFile(path, content);
     return;
   }
-  await axios.post(`${API_BASE}/file`, { path, content });
+  await companionPost('/api/file', { path, content });
 }

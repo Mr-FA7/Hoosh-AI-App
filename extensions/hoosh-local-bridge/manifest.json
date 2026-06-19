@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Hoosh Local Bridge",
+  "version": "0.1.0",
+  "description": "Connects aihoosh.com to Hoosh companion on your computer (files, terminal, Ollama, LM Studio).",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://aihoosh.com/*",
+    "https://*.aihoosh.com/*",
+    "http://127.0.0.1:3001/*",
+    "http://localhost:3001/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://aihoosh.com/*", "https://*.aihoosh.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

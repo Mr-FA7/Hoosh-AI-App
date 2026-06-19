@@ -7,6 +7,7 @@
     "dev": "concurrently -n companion,vite -c blue,green \"nodemon companion.js\" \"vite\"",
     "companion": "nodemon companion.js",
     "companion:fresh": "FA7_PORT=3011 node companion.js",
+    "bridge": "node companion.js",
     "start": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview",

@@ -4,8 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE as API } from '../apiBase';
 import { browseFolderPath, type BrowseFolderPurpose } from '../lib/browseFolder';
+import { companionGet, companionPost } from '../lib/companionHttp';
 import { useRuntimeEnv } from '../hooks/useRuntimeEnv';
+import { isHostedWebApp } from '../runtimeEnv';
 import { isRealFilesystemPath, isWebProjectRoot, listRecentWebProjects } from '../lib/webWorkspace';
+import LocalBridgePanel from './LocalBridgePanel';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
@@ -43,24 +46,30 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
   const [newGoal, setNewGoal] = useState('');
 
   useEffect(() => {
-    axios.get(`${API}/v3/project/recent`)
-      .then((r) => {
-        if (r.data?.ok) {
-          setRecentProjects(r.data.projects || []);
-          return;
-        }
-        throw new Error('companion unavailable');
-      })
-      .catch(() => {
-        setRecentProjects(
-          listRecentWebProjects().map((p) => ({
-            path: p.id,
-            name: p.name,
-            lastOpened: p.lastOpened,
-          }))
-        );
-      });
-  }, []);
+    if (runtime.usesCompanionApi) {
+      companionGet<{ ok?: boolean; projects?: RecentProject[] }>('/api/v3/project/recent')
+        .then((r) => {
+          if (r.data?.ok) {
+            setRecentProjects(r.data.projects || []);
+            return;
+          }
+          throw new Error('companion unavailable');
+        })
+        .catch(() => {
+          axios.get(`${API}/v3/project/recent`)
+            .then((r) => { if (r.data?.ok) setRecentProjects(r.data.projects || []); })
+            .catch(() => setRecentProjects([]));
+        });
+      return;
+    }
+    setRecentProjects(
+      listRecentWebProjects().map((p) => ({
+        path: p.id,
+        name: p.name,
+        lastOpened: p.lastOpened,
+      }))
+    );
+  }, [runtime.usesCompanionApi]);
 
   const browseFolder = async (setter: (p: string) => void, purpose: BrowseFolderPurpose) => {
     const result = await browseFolderPath({ purpose });
@@ -103,13 +112,13 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
     setIsCreating(true);
     setCreateError('');
     try {
-      const r = await axios.post(`${API}/v3/project/create`, {
+      const r = await companionPost<{ ok?: boolean; path?: string; error?: string }>('/api/v3/project/create', {
         name: newName.trim(),
         parentPath: newParent.trim(),
         template: 'blank',
         goal: newGoal.trim() || undefined
       });
-      if (r.data?.ok) {
+      if (r.data?.ok && r.data.path) {
         onSelect(r.data.path);
       } else {
         setCreateError(r.data?.error || tx('project.createFailed'));
@@ -214,6 +223,9 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
         </div>
 
         <div style={{ padding: '22px 24px 24px' }}>
+          {isHostedWebApp() && !runtime.usesCompanionApi && (
+            <LocalBridgePanel onConnected={runtime.refresh} />
+          )}
           <AnimatePresence mode="wait">
             {tab === 'open' ? (
               <motion.div key="open" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>

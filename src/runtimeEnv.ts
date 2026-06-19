@@ -2,7 +2,7 @@
  * Unified runtime detection: Electron desktop, local companion (terminal), or web workspace.
  */
 
-export type RuntimeSurface = 'electron' | 'companion' | 'web';
+export type RuntimeSurface = 'electron' | 'companion' | 'bridge' | 'web';
 
 export interface RuntimeEnv {
   surface: RuntimeSurface;
@@ -12,7 +12,7 @@ export interface RuntimeEnv {
   usesCompanionApi: boolean;
   /** In-browser imported folder workspace (`web://…`). */
   usesWebWorkspace: boolean;
-  labelKey: 'runtime.modeElectron' | 'runtime.modeCompanion' | 'runtime.modeWeb';
+  labelKey: 'runtime.modeElectron' | 'runtime.modeCompanion' | 'runtime.modeBridge' | 'runtime.modeWeb';
   browseHintKey: 'runtime.browseElectron' | 'runtime.browseCompanion' | 'runtime.browseWeb';
 }
 

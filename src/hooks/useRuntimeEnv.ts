@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
-import { getRuntimeEnv } from '../lib/companionProbe';
-import { getRuntimeEnvSync, type RuntimeEnv } from '../runtimeEnv';
+import { useCallback, useEffect, useState } from 'react';
+import { getRuntimeEnv, resetCompanionProbeCache } from '../lib/companionProbe';
+import { getRuntimeEnvSync, isHostedWebApp, type RuntimeEnv } from '../runtimeEnv';
 
-export function useRuntimeEnv(): RuntimeEnv {
+export function useRuntimeEnv(): RuntimeEnv & { refresh: () => void } {
   const [env, setEnv] = useState<RuntimeEnv>(() => getRuntimeEnvSync());
 
-  useEffect(() => {
-    let alive = true;
-    void getRuntimeEnv().then((next) => {
-      if (alive) setEnv(next);
-    });
-    return () => {
-      alive = false;
-    };
+  const refresh = useCallback(() => {
+    resetCompanionProbeCache();
+    void getRuntimeEnv().then(setEnv);
   }, []);
 
-  return env;
+  useEffect(() => {
+    refresh();
+    if (!isHostedWebApp()) return undefined;
+    const id = window.setInterval(refresh, 8000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  return { ...env, refresh };
 }

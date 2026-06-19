@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Plug, RefreshCw, CheckCircle2, Circle, Monitor } from 'lucide-react';
+import { Download, Plug, RefreshCw, CheckCircle2, Circle, Monitor, Rocket } from 'lucide-react';
 import { useI18n } from '../i18n/LocaleContext';
 import { isHostedWebApp } from '../runtimeEnv';
 import BridgeStatusLed from './BridgeStatusLed';
@@ -38,10 +38,10 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
   const dot = (ok: boolean) =>
     ok ? <CheckCircle2 size={14} color="hsl(142 71% 45%)" /> : <Circle size={14} color="hsl(0 72% 51%)" />;
 
-  const btn = (href: string, label: string, primary = false) => (
+  const btn = (href: string, label: string, primary = false, download = true) => (
     <a
       href={href}
-      download
+      {...(download ? { download: true } : {})}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
         borderRadius: '8px',
@@ -51,7 +51,7 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
         fontSize: '12px', fontWeight: primary ? 600 : 500, textDecoration: 'none',
       }}
     >
-      <Download size={14} /> {label}
+      {download ? <Download size={14} /> : <Rocket size={14} />} {label}
     </a>
   );
 
@@ -70,6 +70,12 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
         </div>
         <BridgeStatusLed connected={connected} extension={extension} checking={checking} />
       </div>
+
+      {!connected && !checking && (
+        <div style={{ marginBottom: compact ? '8px' : '12px' }}>
+          {btn('hoosh-bridge://open', t('bridge.launchDesktop'), true, false)}
+        </div>
+      )}
 
       {hintKey && !connected && !checking && (
         <p style={{
@@ -127,11 +133,11 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
             {btn('/hoosh-local-bridge.zip', t('bridge.downloadExtensionOnly'))}
           </div>
 
-      <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
-        <li>{t('bridge.step1Installer')}</li>
-        <li>{t('bridge.hintUseShortcut')}</li>
-        <li>{t('bridge.step3Reload')}</li>
-      </ol>
+          <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
+            <li>{t('bridge.step1Installer')}</li>
+            <li>{t('bridge.hintUseShortcut')}</li>
+            <li>{t('bridge.step3Reload')}</li>
+          </ol>
 
           <button
             type="button"

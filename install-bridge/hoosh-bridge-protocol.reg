@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; Run: reg import hoosh-bridge-protocol.reg
+; Allows aihoosh.com "Launch bridge" button to start the desktop launcher
+
+[HKEY_CURRENT_USER\Software\Classes\hoosh-bridge]
+@="URL:Hoosh Local Bridge"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\hoosh-bridge\DefaultIcon]
+@="Chrome.exe,0"
+
+[HKEY_CURRENT_USER\Software\Classes\hoosh-bridge\shell\open\command]
+@="\"C:\\Windows\\System32\\cmd.exe\" /c \"\"%LOCALAPPDATA%\\Programs\\Hoosh Bridge\\Start-HooshBridge-Auto.bat\"\""

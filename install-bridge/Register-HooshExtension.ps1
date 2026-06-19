@@ -16,4 +16,15 @@ $regPath = "HKCU:\Software\Google\Chrome\Extensions\$ExtId"
 New-Item -Path $regPath -Force | Out-Null
 Set-ItemProperty -Path $regPath -Name 'path' -Value $ExtDir -Type String
 Set-ItemProperty -Path $regPath -Name 'version' -Value $version -Type String
+
+# hoosh-bridge://open → desktop launcher (from aihoosh.com red panel)
+$launcher = Join-Path $env:LOCALAPPDATA 'Programs\Hoosh Bridge\Start-HooshBridge-Auto.bat'
+if (Test-Path $launcher) {
+  New-Item -Path 'HKCU:\Software\Classes\hoosh-bridge' -Force | Out-Null
+  Set-ItemProperty -Path 'HKCU:\Software\Classes\hoosh-bridge' -Name '(Default)' -Value 'URL:Hoosh Local Bridge'
+  Set-ItemProperty -Path 'HKCU:\Software\Classes\hoosh-bridge' -Name 'URL Protocol' -Value ''
+  New-Item -Path 'HKCU:\Software\Classes\hoosh-bridge\shell\open\command' -Force | Out-Null
+  Set-ItemProperty -Path 'HKCU:\Software\Classes\hoosh-bridge\shell\open\command' -Name '(Default)' -Value "`"$launcher`""
+}
+
 Write-Host "Extension v$version -> $ExtDir (id $ExtId)"

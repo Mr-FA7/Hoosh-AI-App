@@ -11,6 +11,7 @@
     "bridge:pack": "node scripts/package-bridge-extension.mjs",
     "bridge:installer:win": "node scripts/build-bridge-windows-installer.mjs",
     "test:bridge:e2e": "node scripts/test-bridge-e2e.mjs",
+    "test:bridge:user": "node scripts/test-bridge-user-like.mjs",
     "prebuild": "npm run bridge:pack",
     "start": "node server.js",
     "build": "tsc && vite build",

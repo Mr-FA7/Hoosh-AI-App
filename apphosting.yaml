@@ -8,6 +8,10 @@ runConfig:
 buildConfig:
   runtime: nodejs20
 
+scripts:
+  buildCommand: npm run build
+  runCommand: node server.js
+
 env:
   - variable: NODE_ENV
     value: production

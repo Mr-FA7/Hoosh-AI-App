@@ -127,10 +127,11 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
             {btn('/hoosh-local-bridge.zip', t('bridge.downloadExtensionOnly'))}
           </div>
 
-          <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
-            <li>{t('bridge.step1Installer')}</li>
-            <li>{t('bridge.step3Reload')}</li>
-          </ol>
+      <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
+        <li>{t('bridge.step1Installer')}</li>
+        <li>{t('bridge.hintUseShortcut')}</li>
+        <li>{t('bridge.step3Reload')}</li>
+      </ol>
 
           <button
             type="button"

@@ -22,6 +22,9 @@ const { mountOllamaApiProxyRoutes } = require('./companionOllamaApiProxy');
 const { mountUatRoutes } = require('./companionUatMount');
 const { mountVmLabRoutes } = require('./companionVmLab');
 const { mountStacksRoutes } = require('./companionStacks');
+const { mountFlowRoutes } = require('./companionFlows');
+const { FlowEngine } = require('./lib/flowEngine');
+const { listFlows } = require('./lib/flowStore');
 const { maybeAutoStartStack } = require('./lib/stackAutoStart');
 const { readDevProfile } = require('./lib/hooshDevProfile');
 const { downloadOllamaRuntimeIntoUserData } = require('./companionOllamaRuntimeDownload');
@@ -218,6 +221,23 @@ async function main() {
   mountVmLabRoutes(app);
   mountStacksRoutes(app, () => currentProjectRoot);
 
+  let flowEngine = new FlowEngine({
+    getProjectRoot: () => currentProjectRoot,
+    getKernel: () => kernel,
+    getHitl: () => hitlGraph
+  });
+  mountFlowRoutes(app, () => currentProjectRoot, () => flowEngine);
+
+  async function refreshFlowSchedules() {
+    if (!currentProjectRoot || !flowEngine) return;
+    try {
+      const flows = await listFlows(currentProjectRoot);
+      flowEngine.refreshSchedules(flows);
+    } catch (e) {
+      console.warn('[Flows] schedule refresh:', e.message);
+    }
+  }
+
   const { port: resolvedPtyPort } = await companionShellPty.startPtyWebSocketServer({
     port: PTY_WS_PORT,
     defaultCwd: getPtyCwd()
@@ -354,6 +374,11 @@ async function main() {
   let agentSessions = new AgentSessions(currentProjectRoot);
   const agentAutomation = new AgentAutomation();
 
+  function wirePlatformContext() {
+    kernel?.setPlatformContext?.({ flowEngine, agentAutomation, hitlGraph });
+  }
+  wirePlatformContext();
+
   function getFtsIndex() {
     if (!currentProjectRoot) return null;
     const cfg = loadIndexingConfig();
@@ -445,6 +470,7 @@ async function main() {
         kernel.setLlmGateway(llmGateway);
         applyAgentConfig();
         loadSandboxConfig();
+        wirePlatformContext();
         applyDevProfileSandbox().then(() => {
           maybeAutoStartStack(currentProjectRoot)
             .then((r) => {
@@ -506,6 +532,7 @@ async function main() {
     }
     agentAutomation.load();
     agentAutomation.startAll();
+    refreshFlowSchedules().catch(() => {});
     skillManager.setProjectRoot(currentProjectRoot);
     refreshSkillPrompts();
   };
@@ -1058,6 +1085,7 @@ app.get('/api/ai/system-stats', (req, res) => {
       engine = new OllamaManager(currentProjectRoot, ollamaHttp());
       negahRunner.setProjectRoot(currentProjectRoot);
       companionShellPty.updateDefaultCwd(currentProjectRoot);
+      wirePlatformContext();
 
       initServices();
       await getWorkspaceManager();
@@ -1065,6 +1093,7 @@ app.get('/api/ai/system-stats', (req, res) => {
       if (currentProjectRoot) clearSandbox(currentProjectRoot);
       
       console.log(`[FA7 OS] Switched project root to: ${currentProjectRoot}`);
+      refreshFlowSchedules().catch(() => {});
       res.json({ ok: true, path: currentProjectRoot });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -1729,6 +1758,12 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.post('/api/v3/automation', (req, res) => {
     const job = agentAutomation.add(req.body || {});
+    res.json({ ok: true, job });
+  });
+
+  app.patch('/api/v3/automation/:id', (req, res) => {
+    const job = agentAutomation.update(req.params.id, req.body || {});
+    if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
     res.json({ ok: true, job });
   });
 

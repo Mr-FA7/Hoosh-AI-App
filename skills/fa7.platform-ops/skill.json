@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "fa7.platform-ops",
+  "name": "Platform Ops (Docker + Workflows)",
+  "version": "1.0.0",
+  "author": { "name": "FA7 Labs", "verified": true },
+  "category": "devops",
+  "summary": "Manage Docker/Podman stacks, containers, and Hoosh Workflows like n8n (original engine).",
+  "description": "Teaches agents to use stack*, container*, flow*, and automation* tools for full lifecycle: create, run, update, enable/disable, and delete.",
+  "systemPrompt": "./prompts/system.md",
+  "memoryScope": "project",
+  "permissions": {
+    "filesystem": "read",
+    "shell": { "allowlist": ["docker", "podman"] },
+    "network": [],
+    "mcp": [],
+    "secrets": []
+  },
+  "pricing": { "model": "free" }
+}

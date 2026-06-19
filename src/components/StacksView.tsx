@@ -42,6 +42,13 @@ const StacksView: React.FC = () => {
   const [logService, setLogService] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [platformTab, setPlatformTab] = useState<'stacks' | 'containers' | 'images' | 'networks' | 'volumes'>('stacks');
+  const [imageList, setImageList] = useState<any[]>([]);
+  const [networkList, setNetworkList] = useState<any[]>([]);
+  const [volumeList, setVolumeList] = useState<any[]>([]);
+  const [pullImageName, setPullImageName] = useState('nginx:alpine');
+  const [execCmd, setExecCmd] = useState('echo hello');
+  const [execTarget, setExecTarget] = useState('');
 
   useEffect(() => {
     selectedFileRef.current = selectedFile;
@@ -86,6 +93,65 @@ const StacksView: React.FC = () => {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const refreshPlatform = useCallback(async () => {
+    setBusy('platform');
+    try {
+      const [imgs, nets, vols, ctrs] = await Promise.all([
+        axios.get(`${API}/v3/containers/images`),
+        axios.get(`${API}/v3/containers/networks`),
+        axios.get(`${API}/v3/containers/volumes`),
+        axios.get(`${API}/v3/containers/list`)
+      ]);
+      setImageList(imgs.data?.images || []);
+      setNetworkList(nets.data?.networks || []);
+      setVolumeList(vols.data?.volumes || []);
+      setContainers(ctrs.data?.containers || []);
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (platformTab !== 'stacks') void refreshPlatform();
+  }, [platformTab, refreshPlatform]);
+
+  const pullImage = async () => {
+    setBusy('pull');
+    try {
+      const r = await axios.post(`${API}/v3/containers/images/pull`, { image: pullImageName });
+      setMsg(r.data?.ok ? `Pulled ${pullImageName}` : (r.data?.stderr || 'Pull failed'));
+      await refreshPlatform();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const containerAct = async (action: string, id: string) => {
+    setBusy(action);
+    try {
+      await axios.post(`${API}/v3/containers/${action}`, { id });
+      await refreshPlatform();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const stackExtra = async (action: 'pull' | 'restart' | 'build') => {
+    setBusy(action);
+    try {
+      await axios.post(`${API}/v3/stacks/${action}`, { composeFile: selectedFile || undefined });
+      await refresh(selectedFileRef.current || undefined);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const tabBtn = (id: typeof platformTab, label: string): React.CSSProperties => ({
+    padding: '6px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+    background: platformTab === id ? 'rgba(59,130,246,0.25)' : '#1a1a1a',
+    color: platformTab === id ? '#93c5fd' : '#888'
+  });
 
   const act = async (action: 'up' | 'down' | 'logs' | 'init') => {
     if (action !== 'init' && !selectedFile && files.length === 0) {
@@ -162,6 +228,76 @@ const StacksView: React.FC = () => {
       </div>
 
       <p style={{ fontSize: '12px', color: '#888', marginTop: 0 }}>{t('stacks.hint')}</p>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+        <button type="button" style={tabBtn('stacks', t('platform.tabStacks'))} onClick={() => setPlatformTab('stacks')}>{t('platform.tabStacks')}</button>
+        <button type="button" style={tabBtn('containers', t('platform.tabContainers'))} onClick={() => setPlatformTab('containers')}>{t('platform.tabContainers')}</button>
+        <button type="button" style={tabBtn('images', t('platform.tabImages'))} onClick={() => setPlatformTab('images')}>{t('platform.tabImages')}</button>
+        <button type="button" style={tabBtn('networks', t('platform.tabNetworks'))} onClick={() => setPlatformTab('networks')}>{t('platform.tabNetworks')}</button>
+        <button type="button" style={tabBtn('volumes', t('platform.tabVolumes'))} onClick={() => setPlatformTab('volumes')}>{t('platform.tabVolumes')}</button>
+      </div>
+
+      {platformTab === 'containers' && (
+        <div style={card}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px' }}>{t('platform.tabContainers')}</div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <input value={execTarget} onChange={(e) => setExecTarget(e.target.value)} placeholder="container id/name" style={{ flex: 1, padding: '8px', borderRadius: '8px', background: '#0a0a0a', color: '#ddd', border: '1px solid #333', fontSize: '12px' }} />
+            <input value={execCmd} onChange={(e) => setExecCmd(e.target.value)} placeholder="command" style={{ flex: 2, padding: '8px', borderRadius: '8px', background: '#0a0a0a', color: '#ddd', border: '1px solid #333', fontSize: '12px' }} />
+            <button type="button" style={btn()} disabled={!!busy} onClick={async () => {
+              setBusy('exec');
+              try {
+                const r = await axios.post(`${API}/v3/containers/exec`, { id: execTarget, command: execCmd });
+                setMsg(r.data?.output || r.data?.stderr || '');
+              } finally { setBusy(null); }
+            }}>{t('platform.exec')}</button>
+          </div>
+          {containers.map((c) => (
+            <div key={c.id || c.name} style={{ fontSize: '12px', padding: '8px 0', borderBottom: '1px solid #222', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ flex: 1, fontFamily: 'monospace', color: '#94a3b8' }}>{c.name} · {c.image} · {c.state}</span>
+              <button type="button" style={btn()} onClick={() => void containerAct('start', c.name || c.id)}>Start</button>
+              <button type="button" style={btn()} onClick={() => void containerAct('stop', c.name || c.id)}>Stop</button>
+              <button type="button" style={btn()} onClick={() => void containerAct('restart', c.name || c.id)}>{t('platform.restart')}</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {platformTab === 'images' && (
+        <div style={card}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <input value={pullImageName} onChange={(e) => setPullImageName(e.target.value)} placeholder={t('platform.imageName')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: '#0a0a0a', color: '#ddd', border: '1px solid #333', fontSize: '12px' }} />
+            <button type="button" style={btn(true)} disabled={!!busy} onClick={() => void pullImage()}>{t('platform.pullImage')}</button>
+          </div>
+          {imageList.map((img) => (
+            <div key={`${img.repository}:${img.tag}:${img.id}`} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #222', color: '#94a3b8', fontFamily: 'monospace' }}>
+              {img.repository}:{img.tag} · {img.size}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {platformTab === 'networks' && (
+        <div style={card}>
+          {networkList.map((n) => (
+            <div key={n.id || n.name} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #222', color: '#94a3b8' }}>
+              {n.name} · {n.driver} · {n.scope}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {platformTab === 'volumes' && (
+        <div style={card}>
+          {volumeList.map((v) => (
+            <div key={v.name} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #222', color: '#94a3b8' }}>
+              {v.name} · {v.driver}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {platformTab === 'stacks' && (
+      <>
 
       <div style={card}>
         <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -258,6 +394,9 @@ const StacksView: React.FC = () => {
           <button type="button" style={btn()} onClick={() => void act('logs')} disabled={!!busy || !runtime?.composeAvailable}>
             <FileText size={14} /> {t('stacks.logs')}
           </button>
+          <button type="button" style={btn()} onClick={() => void stackExtra('pull')} disabled={!!busy || !runtime?.composeAvailable}>{t('platform.pull')}</button>
+          <button type="button" style={btn()} onClick={() => void stackExtra('restart')} disabled={!!busy || !runtime?.composeAvailable}>{t('platform.restart')}</button>
+          <button type="button" style={btn()} onClick={() => void stackExtra('build')} disabled={!!busy || !runtime?.composeAvailable}>{t('platform.build')}</button>
           <input
             value={logService}
             onChange={(e) => setLogService(e.target.value)}
@@ -321,6 +460,8 @@ const StacksView: React.FC = () => {
             {logs}
           </pre>
         </div>
+      )}
+      </>
       )}
     </div>
   );

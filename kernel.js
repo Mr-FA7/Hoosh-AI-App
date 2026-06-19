@@ -90,6 +90,11 @@ class AgentKernel {
         this.missionPausedExecution = null;
         this.MAX_TOOL_ROUNDS = 10;
         this.skillPrompts = ''; // injected system prompts from active Skills (S1)
+        this._platformCtx = {};
+    }
+
+    setPlatformContext(ctx = {}) {
+        this._platformCtx = { ...this._platformCtx, ...ctx };
     }
 
     /** Set the combined system-prompt block contributed by active Skills. */
@@ -252,7 +257,9 @@ class AgentKernel {
         }
 
         const skillBlock = this.skillPrompts ? `\n\n${this.skillPrompts}` : '';
-        return `${baseRules}${learnedContext}${skillBlock}${this.buildMcpToolsBlock()}\n\nROLE: ${role}\n${extra}${vaultHint}${voiceRules}${webHint}${memoryHint}`;
+        const { PLATFORM_TOOLS_DOC } = require('./lib/platformAgentTools');
+        const platformBlock = `\n\n${PLATFORM_TOOLS_DOC}`;
+        return `${baseRules}${learnedContext}${skillBlock}${platformBlock}${this.buildMcpToolsBlock()}\n\nROLE: ${role}\n${extra}${vaultHint}${voiceRules}${webHint}${memoryHint}`;
     }
 
     setOllamaUrl(url) {
@@ -777,45 +784,18 @@ class AgentKernel {
                 });
                 return JSON.stringify(result);
             }
-            if (normalizedTool === 'stackUp') {
-                const { StackRunner } = require('./lib/stackRunner');
-                const runner = new StackRunner(this.projectRoot);
-                const result = await runner.up({
-                    composeFile: safeArgs.composeFile,
-                    build: !!safeArgs.build,
-                    services: safeArgs.services
+
+            const { isPlatformTool, executePlatformTool } = require('./lib/platformAgentTools');
+            if (isPlatformTool(normalizedTool)) {
+                return executePlatformTool(normalizedTool, safeArgs, {
+                    projectRoot: this.projectRoot,
+                    kernel: this,
+                    flowEngine: this._platformCtx?.flowEngine,
+                    agentAutomation: this._platformCtx?.agentAutomation,
+                    hitlGraph: this._platformCtx?.hitlGraph
                 });
-                return JSON.stringify(result);
             }
-            if (normalizedTool === 'stackDown') {
-                const { StackRunner } = require('./lib/stackRunner');
-                const runner = new StackRunner(this.projectRoot);
-                const result = await runner.down({
-                    composeFile: safeArgs.composeFile,
-                    volumes: !!safeArgs.volumes
-                });
-                return JSON.stringify(result);
-            }
-            if (normalizedTool === 'stackStatus') {
-                const { StackRunner } = require('./lib/stackRunner');
-                const runner = new StackRunner(this.projectRoot);
-                const [runtime, files, psResult] = await Promise.all([
-                    runner.status(),
-                    runner.discover(),
-                    runner.ps(safeArgs.composeFile)
-                ]);
-                return JSON.stringify({ runtime, files, ps: psResult });
-            }
-            if (normalizedTool === 'stackLogs') {
-                const { StackRunner } = require('./lib/stackRunner');
-                const runner = new StackRunner(this.projectRoot);
-                const result = await runner.logs({
-                    composeFile: safeArgs.composeFile,
-                    service: safeArgs.service,
-                    tail: safeArgs.tail
-                });
-                return JSON.stringify(result);
-            }
+
             return "Unknown tool";
         } catch (err) {
             return `Tool error: ${err.message}`;

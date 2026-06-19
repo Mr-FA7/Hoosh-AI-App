@@ -12,6 +12,7 @@ import ActivePreviewView from './components/ActivePreviewView';
 import UatView from './components/UatView';
 import VmLabView from './components/VmLabView';
 import StacksView from './components/StacksView';
+import WorkflowView from './components/WorkflowView';
 import MarketplaceView from './components/MarketplaceView';
 import SettingsView from './components/SettingsView';
 import GitPanel from './components/GitPanel';
@@ -65,7 +66,7 @@ const App: React.FC = () => {
   const [missionDiffZone, setMissionDiffZone] = useState<{ fileName: string; original: string; proposed: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<
-    'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
+    'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
   >('editor');
   const [problemCounts, setProblemCounts] = useState({ errors: 0, warnings: 0 });
   const [kavoshNavigateUrl, setKavoshNavigateUrl] = useState<string | null>(null);
@@ -460,6 +461,7 @@ const App: React.FC = () => {
                     {viewMode === 'terminal' && <TerminalView />}
                     {viewMode === 'vmlab' && <VmLabView />}
                     {viewMode === 'stacks' && <StacksView />}
+                    {viewMode === 'workflows' && <WorkflowView />}
                     {viewMode === 'browser' && <BrowserView navigateUrl={kavoshNavigateUrl} onNavigateUrlConsumed={() => setKavoshNavigateUrl(null)} />}
                     {viewMode === 'preview' && <ActivePreviewView projectRoot={projectRoot} />}
                     {viewMode === 'marketplace' && <MarketplaceView onThemeApplied={(themeName) => setCurrentTheme(themeName)} />}

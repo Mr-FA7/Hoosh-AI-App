@@ -22,6 +22,8 @@ import BottomBar from './components/BottomBar';
 import ProblemsPanel from './components/ProblemsPanel';
 import axios from 'axios';
 import { API_BASE } from './apiBase';
+import { fetchProjectFiles, fetchFileContent, saveFileContent, switchProject } from './lib/workspaceApi';
+import { isWebProjectRoot } from './lib/webWorkspace';
 import type { WorkspaceTab } from './types/workspaceTab';
 import { newWorkspaceTabId } from './types/workspaceTab';
 import { useI18n } from './i18n/LocaleContext';
@@ -105,11 +107,7 @@ const App: React.FC = () => {
 
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/files`, {
-        params: { _: Date.now() },
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
-      const next = Array.isArray(res.data) ? res.data : [];
+      const next = await fetchProjectFiles(undefined, projectRoot);
       setFiles((prev) => {
         const key = (rows: typeof next) =>
           JSON.stringify(
@@ -124,7 +122,7 @@ const App: React.FC = () => {
       setFiles([]);
       setExplorerSyncKey((k) => k + 1);
     }
-  }, []);
+  }, [projectRoot]);
 
   useEffect(() => {
     if (!projectRoot) return;
@@ -176,10 +174,10 @@ const App: React.FC = () => {
   }, [viewMode, fetchFiles, projectRoot]);
 
   const loadFileContent = useCallback(async (path: string) => {
-    const res = await axios.get(`${API_BASE}/file`, { params: { path } });
+    const body = await fetchFileContent(path, projectRoot);
     setActiveFile(path);
-    setContent(res.data?.content ?? '');
-  }, []);
+    setContent(body);
+  }, [projectRoot]);
 
   /** Load file when switching tabs (explorer uses handleFileSelect + loadFileContent). */
   useEffect(() => {
@@ -344,7 +342,7 @@ const App: React.FC = () => {
 
   const handleProjectSelect = async (root: string) => {
       try {
-          await axios.post(`${API_BASE}/v3/project/switch`, { path: root });
+          await switchProject(root);
           setProjectRoot(root);
           fetchFiles();
       } catch (err: any) {
@@ -354,7 +352,9 @@ const App: React.FC = () => {
 
   const handleCloseProject = async () => {
     try {
-      await axios.post(`${API_BASE}/v3/project/close`);
+      if (!isWebProjectRoot(projectRoot)) {
+        await axios.post(`${API_BASE}/v3/project/close`);
+      }
       setProjectRoot(null);
       setFiles([]);
       setWorkspaceTabs([]);
@@ -371,7 +371,7 @@ const App: React.FC = () => {
     if (!activeFile) return;
     setIsSaving(true);
     try {
-      await axios.post(`${API_BASE}/file`, { path: activeFile, content: newContent });
+      await saveFileContent(activeFile, newContent, projectRoot);
       setContent(newContent);
     } catch (err) {
       console.error('Failed to save file', err);
@@ -382,7 +382,7 @@ const App: React.FC = () => {
 
   const handleApplyProposal = async (fileName: string, proposedContent: string) => {
     try {
-      await axios.post(`${API_BASE}/file`, { path: fileName, content: proposedContent });
+      await saveFileContent(fileName, proposedContent, projectRoot);
       if (activeFile === fileName) setContent(proposedContent);
       setProposals(prev => prev.filter(p => p.fileName !== fileName));
     } catch (err: any) {
@@ -413,7 +413,8 @@ const App: React.FC = () => {
                 style={{ overflow: 'hidden' }}
               >
                 <FileExplorer 
-                  files={files} 
+                  files={files}
+                  projectRoot={projectRoot}
                   explorerSyncKey={explorerSyncKey}
                   activeFile={activeFile} 
                   onFileSelect={handleFileSelect} 

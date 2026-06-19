@@ -2,10 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Folder, FileCode, RefreshCw, FolderOpen, Edit3, ChevronRight, FolderInput, FolderPlus, X } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE } from '../apiBase';
+import { browseFolderPath } from '../lib/browseFolder';
+import { fetchProjectFiles } from '../lib/workspaceApi';
+import { getWebProjectMeta, isWebProjectRoot } from '../lib/webWorkspace';
 import { useI18n } from '../i18n/LocaleContext';
 
 interface FileExplorerProps {
   files: any[];
+  projectRoot?: string | null;
   /** Incremented after each successful tree refetch so nested folder cache is cleared while keeping expanded folders open. */
   explorerSyncKey?: number;
   activeFile: string | null;
@@ -16,7 +20,7 @@ interface FileExplorerProps {
 
 type FsEntry = { name: string; path: string; isDirectory: boolean; workspaceRoot?: boolean };
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0, activeFile, onFileSelect, onRefresh, onProjectChange }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ files, projectRoot = null, explorerSyncKey = 0, activeFile, onFileSelect, onRefresh, onProjectChange }) => {
   const { t } = useI18n();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -45,7 +49,20 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    void fetchProjectInfo();
+  }, [projectRoot]);
+
   const fetchProjectInfo = async () => {
+    if (projectRoot && isWebProjectRoot(projectRoot)) {
+      const meta = getWebProjectMeta(projectRoot);
+      if (meta) {
+        setProjectInfo({ path: meta.path, name: meta.name, folders: [{ name: meta.name, path: meta.path }] });
+        setNewPath(meta.path);
+        setWorkspaceFolders([{ name: meta.name, path: meta.path }]);
+      }
+      return;
+    }
     try {
       const res = await axios.get(`${API_BASE}/v3/project/path`, {
         params: { _: Date.now() },
@@ -84,14 +101,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
   };
 
   const handleBrowseProjectPath = async () => {
-    try {
-      const r = await axios.get(`${API_BASE}/dialog/open-folder`);
-      if (r.data?.ok && !r.data.canceled && r.data.path) {
-        setNewPath(r.data.path);
-      }
-    } catch (e: any) {
-      alert(t('explorer.alertPickerFailed') + ' ' + (e.response?.data?.error || e.message));
+    const result = await browseFolderPath();
+    if (result.ok) {
+      setNewPath(result.path);
+      return;
     }
+    if (result.canceled) return;
+    alert(t(result.errorKey || 'explorer.alertPickerFailed'));
   };
 
   const handleAddWorkspaceFolder = async () => {
@@ -132,8 +148,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
     inflightRef.current.add(relPath);
     setLoadingPaths((p) => new Set(p).add(relPath));
     try {
-      const res = await axios.get<FsEntry[]>(`${API_BASE}/files`, { params: { path: relPath } });
-      const rows = Array.isArray(res.data) ? res.data : [];
+      const rows = await fetchProjectFiles(relPath, projectRoot || projectInfo?.path || null);
       setChildrenCache((c) => ({ ...c, [relPath]: rows }));
     } catch (e) {
       console.error('List folder failed', relPath, e);
@@ -146,7 +161,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, explorerSyncKey = 0,
         return n;
       });
     }
-  }, []);
+  }, [projectRoot, projectInfo?.path]);
 
   const expandedKey = useMemo(() => [...expandedPaths].sort().join('|'), [expandedPaths]);
 

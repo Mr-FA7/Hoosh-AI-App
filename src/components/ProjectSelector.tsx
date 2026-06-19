@@ -3,6 +3,9 @@ import { FolderOpen, PlusCircle, Laptop, Rocket, ShieldCheck, Clock, ChevronRigh
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE as API } from '../apiBase';
+import { browseFolderPath } from '../lib/browseFolder';
+import { prefersBrowserFolderPicker } from '../platform';
+import { listRecentWebProjects } from '../lib/webWorkspace';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
@@ -40,45 +43,34 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
 
   useEffect(() => {
     axios.get(`${API}/v3/project/recent`)
-      .then((r) => { if (r.data?.ok) setRecentProjects(r.data.projects || []); })
-      .catch(() => {});
+      .then((r) => {
+        if (r.data?.ok) {
+          setRecentProjects(r.data.projects || []);
+          return;
+        }
+        throw new Error('companion unavailable');
+      })
+      .catch(() => {
+        setRecentProjects(
+          listRecentWebProjects().map((p) => ({
+            path: p.id,
+            name: p.name,
+            lastOpened: p.lastOpened,
+          }))
+        );
+      });
   }, []);
 
   const browseFolder = async (setter: (p: string) => void) => {
-    const applyPath = (p: string | undefined) => {
-      const t = String(p || '').trim();
-      if (t) setter(t);
-    };
-
-    if (window.electronAPI?.openFolder) {
-      try {
-        const result = await window.electronAPI.openFolder();
-        if (result?.canceled) return;
-        if (result?.path) {
-          applyPath(result.path);
-          return;
-        }
-      } catch (err) {
-        console.warn('[ProjectSelector] electronAPI.openFolder failed, falling back to HTTP', err);
-      }
+    const result = await browseFolderPath();
+    if (result.ok) {
+      setter(result.path);
+      return;
     }
-
-    try {
-      const r = await axios.get(`${API}/dialog/open-folder`);
-      if (r.data?.ok && !r.data.canceled && r.data.path) {
-        applyPath(r.data.path);
-        return;
-      }
-    } catch (err: unknown) {
-      console.error('[ProjectSelector] /api/dialog/open-folder failed', err);
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
-          : undefined;
-      window.alert(
-        `Could not open folder picker.${msg ? `\n\n${msg}` : ''}\n\nIf you use dev mode in a normal browser, ensure the companion is running on port 3001 (Vite proxies /api).`
-      );
-    }
+    if (result.canceled) return;
+    const key = result.errorKey || 'project.folderPickerFailed';
+    const base = tx(key);
+    window.alert(result.detail ? `${base}\n\n${result.detail}` : base);
   };
 
   const handleOpen = () => {
@@ -237,6 +229,11 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
                     <BrowseBtn onClick={() => browseFolder(setPath)} />
                   </div>
                   {isError && <p style={{ color: 'hsl(0 100% 60%)', fontSize: '11px', marginBottom: '10px' }}>{tx('project.pathError')}</p>}
+                  {prefersBrowserFolderPicker() && (
+                    <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '11px', marginBottom: '10px' }}>
+                      {tx('project.browseMobileHint')}
+                    </p>
+                  )}
                   <button className="btn-primary" onClick={handleOpen}
                     style={{ width: '100%', marginTop: '6px', background: 'hsl(var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '11px' }}>
                     <FolderOpen size={15} /> {tx('project.openProject')}

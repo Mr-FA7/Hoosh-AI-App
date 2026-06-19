@@ -84,8 +84,10 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
   "dependencies": {
-    "@lancedb/lancedb": "^0.30.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
     "@vitejs/plugin-react": "^6.0.1",
@@ -106,7 +108,6 @@
     "lucide-react": "^1.6.0",
     "monaco-editor-textmate": "^4.0.0",
     "monaco-textmate": "^3.0.1",
-    "node-pty": "^1.1.0",
     "ollama": "^0.6.3",
     "onigasm": "^2.2.5",
     "postcss": "^8.5.8",
@@ -115,13 +116,17 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.2",
-    "tree-sitter": "^0.21.1",
-    "tree-sitter-javascript": "^0.25.0",
-    "tree-sitter-typescript": "^0.23.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2",
     "ws": "^8.20.0",
     "zustand": "^5.0.12"
+  },
+  "optionalDependencies": {
+    "@lancedb/lancedb": "^0.30.0",
+    "node-pty": "^1.1.0",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-typescript": "^0.23.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

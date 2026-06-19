@@ -47,6 +47,7 @@
       "companionOllamaPull.js",
       "companionOllamaApiProxy.js",
       "companionUatMount.js",
+      "companionStacks.js",
       "companionVmLab.js",
       "companionVmLabEmbeddedQemu.js",
       "companionOllamaRuntime.js",

@@ -777,6 +777,45 @@ class AgentKernel {
                 });
                 return JSON.stringify(result);
             }
+            if (normalizedTool === 'stackUp') {
+                const { StackRunner } = require('./lib/stackRunner');
+                const runner = new StackRunner(this.projectRoot);
+                const result = await runner.up({
+                    composeFile: safeArgs.composeFile,
+                    build: !!safeArgs.build,
+                    services: safeArgs.services
+                });
+                return JSON.stringify(result);
+            }
+            if (normalizedTool === 'stackDown') {
+                const { StackRunner } = require('./lib/stackRunner');
+                const runner = new StackRunner(this.projectRoot);
+                const result = await runner.down({
+                    composeFile: safeArgs.composeFile,
+                    volumes: !!safeArgs.volumes
+                });
+                return JSON.stringify(result);
+            }
+            if (normalizedTool === 'stackStatus') {
+                const { StackRunner } = require('./lib/stackRunner');
+                const runner = new StackRunner(this.projectRoot);
+                const [runtime, files, psResult] = await Promise.all([
+                    runner.status(),
+                    runner.discover(),
+                    runner.ps(safeArgs.composeFile)
+                ]);
+                return JSON.stringify({ runtime, files, ps: psResult });
+            }
+            if (normalizedTool === 'stackLogs') {
+                const { StackRunner } = require('./lib/stackRunner');
+                const runner = new StackRunner(this.projectRoot);
+                const result = await runner.logs({
+                    composeFile: safeArgs.composeFile,
+                    service: safeArgs.service,
+                    tail: safeArgs.tail
+                });
+                return JSON.stringify(result);
+            }
             return "Unknown tool";
         } catch (err) {
             return `Tool error: ${err.message}`;

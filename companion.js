@@ -21,6 +21,9 @@ const { mountOllamaPullRoutes } = require('./companionOllamaPull');
 const { mountOllamaApiProxyRoutes } = require('./companionOllamaApiProxy');
 const { mountUatRoutes } = require('./companionUatMount');
 const { mountVmLabRoutes } = require('./companionVmLab');
+const { mountStacksRoutes } = require('./companionStacks');
+const { maybeAutoStartStack } = require('./lib/stackAutoStart');
+const { readDevProfile } = require('./lib/hooshDevProfile');
 const { downloadOllamaRuntimeIntoUserData } = require('./companionOllamaRuntimeDownload');
 const { loadFa7Plugins } = require('./companionFa7Plugins');
 const { KavoshBrowserKernel } = require('./kavoshBrowserKernel');
@@ -213,6 +216,7 @@ async function main() {
   mountOllamaApiProxyRoutes(app);
   mountUatRoutes(app);
   mountVmLabRoutes(app);
+  mountStacksRoutes(app, () => currentProjectRoot);
 
   const { port: resolvedPtyPort } = await companionShellPty.startPtyWebSocketServer({
     port: PTY_WS_PORT,
@@ -284,6 +288,25 @@ async function main() {
       image: 'node:20-bookworm-slim',
       playwrightImage: 'mcr.microsoft.com/playwright:v1.49.0-jammy'
     };
+  }
+
+  async function applyDevProfileSandbox() {
+    if (!currentProjectRoot) return;
+    try {
+      const { profile } = await readDevProfile(currentProjectRoot);
+      if (!profile?.sandbox) return;
+      const base = loadSandboxConfig();
+      const merged = {
+        ...base,
+        image: profile.sandbox.image || base.image,
+        memory: profile.sandbox.memory || base.memory,
+        cpus: profile.sandbox.cpus || base.cpus
+      };
+      sandboxRunner = new SandboxRunner(currentProjectRoot, merged);
+      kernel.setSandboxRunner(sandboxRunner);
+    } catch (e) {
+      console.warn('[Stacks] dev profile sandbox merge skipped:', e.message);
+    }
   }
 
   function getVectorIndex() {
@@ -422,6 +445,15 @@ async function main() {
         kernel.setLlmGateway(llmGateway);
         applyAgentConfig();
         loadSandboxConfig();
+        applyDevProfileSandbox().then(() => {
+          maybeAutoStartStack(currentProjectRoot)
+            .then((r) => {
+              if (r && !r.skipped && r.ok) {
+                console.log(`[Stacks] autoUp ready (${r.preview?.urls?.length || 0} preview URLs)`);
+              }
+            })
+            .catch((e) => console.warn('[Stacks] autoUp:', e.message));
+        }).catch(() => {});
         console.log('[Kernel] Ready');
       });
     if (currentProjectRoot) {
@@ -2630,6 +2662,7 @@ app.get('/api/ai/system-stats', (req, res) => {
     try {
       const engines = getEngineMatrix(llmGateway.getConfig());
       const ollamaBase = ollamaHttp();
+      const { testProvider } = require('./lib/litellmRouter');
       const rows = [];
       for (const e of engines) {
         let ok = false;
@@ -2640,8 +2673,10 @@ app.get('/api/ai/system-stats', (req, res) => {
             ok = r.status === 200;
             detail = ok ? 'reachable' : `HTTP ${r.status}`;
           } else {
-            ok = true;
-            detail = 'configured';
+            const prov = llmGateway.getProvider(e.provider);
+            const test = await testProvider(prov, ollamaHttp);
+            ok = !!test.ok;
+            detail = test.detail || (ok ? 'reachable' : 'unreachable');
           }
         } catch (err) {
           detail = err.message || 'unreachable';
@@ -2659,12 +2694,27 @@ app.get('/api/ai/system-stats', (req, res) => {
       const engineId = String(req.body?.engineId || '');
       const routing = suggestRoleRouting(engineId);
       if (!routing) return res.status(404).json({ ok: false, error: 'Unknown engine' });
+      const { ENGINES } = require('./lib/engineMatrix');
+      const engine = ENGINES.find((x) => x.id === engineId);
       const cfg = llmGateway.getConfig();
-      const roleModels = { ...(cfg.roleModels || {}) };
+      const roles = { ...(cfg.roles || {}) };
+      const providers = { ...(cfg.providers || {}) };
       for (const [role, v] of Object.entries(routing)) {
-        roleModels[role] = { ...(roleModels[role] || {}), provider: v.provider };
+        roles[role] = { ...(roles[role] || {}), provider: v.provider };
       }
-      const updated = llmGateway.save({ ...cfg, roleModels });
+      if (engine?.provider && providers[engine.provider]) {
+        providers[engine.provider] = {
+          ...providers[engine.provider],
+          enabled: true,
+          baseUrl: engine.defaultUrl || providers[engine.provider].baseUrl
+        };
+      }
+      const updated = llmGateway.save({
+        ...cfg,
+        roles,
+        providers,
+        defaultProvider: engine?.provider || cfg.defaultProvider
+      });
       res.json({ ok: true, config: updated, applied: engineId });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
@@ -3871,8 +3921,15 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   app.get('/api/ai/models', async (req, res) => {
     try {
-      const response = await axios.get(`${ollamaHttp()}/api/tags`);
-      res.json(response.data);
+      const models = await llmGateway.listModels();
+      res.json({
+        models: models.map((m) => ({
+          name: m.name,
+          label: m.label || m.name,
+          provider: m.provider,
+          source: m.source
+        }))
+      });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -3949,17 +4006,19 @@ app.get('/api/ai/system-stats', (req, res) => {
         const existing = new Set(models.map((m) => m.name));
         for (const gm of gatewayModels) {
           if (gm.provider === 'ollama' || existing.has(gm.name)) continue;
+          const isLmStudio = gm.provider === 'lmstudio';
           models.push({
             name: gm.name,
             label: gm.label || gm.name,
             installed: true,
-            available_online: true,
+            available_online: false,
             chat_online: null,
             chat_state: 'online',
             online_reason: '',
             size: null,
             parameter_size: '',
-            source: gm.source || 'gateway'
+            source: isLmStudio ? 'lmstudio' : (gm.source || 'gateway'),
+            provider: gm.provider || 'gateway'
           });
           existing.add(gm.name);
         }

@@ -78,8 +78,15 @@ export function resetCompanionProbeCache(): void {
 export async function checkBridgeSetup(): Promise<{
   extension: boolean;
   companion: boolean;
+  hintKey?: 'bridge.hintNoExtension' | 'bridge.hintNoCompanion' | 'bridge.hintRefreshPage';
 }> {
-  const extension = isBridgeExtensionInstalled() || (await waitForBridgeExtension(800));
-  const companion = extension ? await probeLocalBridge(true) : false;
-  return { extension, companion };
+  const extension = isBridgeExtensionInstalled() || (await waitForBridgeExtension(3000));
+  if (!extension) {
+    return { extension: false, companion: false, hintKey: 'bridge.hintNoExtension' };
+  }
+  const companion = await probeLocalBridge(true);
+  if (!companion) {
+    return { extension: true, companion: false, hintKey: 'bridge.hintNoCompanion' };
+  }
+  return { extension: true, companion: true };
 }

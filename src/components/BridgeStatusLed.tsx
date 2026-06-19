@@ -3,34 +3,44 @@ import { useI18n } from '../i18n/LocaleContext';
 
 type Props = {
   connected: boolean;
+  extension: boolean;
   checking: boolean;
   prominent?: boolean;
 };
 
-const BridgeStatusLed: React.FC<Props> = ({ connected, checking, prominent = false }) => {
+const BridgeStatusLed: React.FC<Props> = ({ connected, extension, checking, prominent = false }) => {
   const { t } = useI18n();
 
-  const ledColor = checking ? '#eab308' : connected ? '#22c55e' : '#ef4444';
+  const partial = extension && !connected && !checking;
+  const ledColor = checking ? '#eab308' : connected ? '#22c55e' : partial ? '#f97316' : '#ef4444';
   const ledGlow = checking
     ? '0 0 12px 3px rgba(234,179,8,0.6)'
     : connected
       ? '0 0 14px 4px rgba(34,197,94,0.75)'
-      : '0 0 12px 3px rgba(239,68,68,0.55)';
+      : partial
+        ? '0 0 12px 3px rgba(249,115,22,0.6)'
+        : '0 0 12px 3px rgba(239,68,68,0.55)';
   const statusLabel = checking
     ? t('bridge.statusChecking')
     : connected
       ? t('bridge.statusConnected')
-      : t('bridge.statusDisconnected');
+      : partial
+        ? t('bridge.statusCompanionOff')
+        : t('bridge.statusDisconnected');
   const borderColor = checking
     ? 'rgba(234,179,8,0.5)'
     : connected
       ? 'rgba(34,197,94,0.55)'
-      : 'rgba(239,68,68,0.5)';
+      : partial
+        ? 'rgba(249,115,22,0.5)'
+        : 'rgba(239,68,68,0.5)';
   const bgColor = checking
     ? 'rgba(234,179,8,0.12)'
     : connected
       ? 'rgba(34,197,94,0.12)'
-      : 'rgba(239,68,68,0.1)';
+      : partial
+        ? 'rgba(249,115,22,0.1)'
+        : 'rgba(239,68,68,0.1)';
 
   const ledSize = prominent ? 14 : 11;
   const fontSize = prominent ? 13 : 11;
@@ -59,7 +69,7 @@ const BridgeStatusLed: React.FC<Props> = ({ connected, checking, prominent = fal
             background: ledColor,
             boxShadow: ledGlow,
             flexShrink: 0,
-            animation: checking || connected ? 'bridge-led-pulse 2s ease-in-out infinite' : 'none',
+            animation: checking || connected || partial ? 'bridge-led-pulse 2s ease-in-out infinite' : 'none',
           }}
         />
         <span style={{ fontSize, fontWeight: 700, color: ledColor, letterSpacing: '0.02em' }}>

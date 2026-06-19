@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { checkBridgeSetup, resetCompanionProbeCache } from '../lib/companionProbe';
 import { isHostedWebApp } from '../runtimeEnv';
 
+export type BridgeHintKey = 'bridge.hintNoExtension' | 'bridge.hintNoCompanion' | 'bridge.hintRefreshPage';
+
 export function useBridgeConnectionStatus(onConnected?: () => void) {
   const [extension, setExtension] = useState(false);
   const [companion, setCompanion] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [hintKey, setHintKey] = useState<BridgeHintKey | undefined>();
 
   const refresh = useCallback(async () => {
     if (!isHostedWebApp()) return;
@@ -15,6 +18,7 @@ export function useBridgeConnectionStatus(onConnected?: () => void) {
       const status = await checkBridgeSetup();
       setExtension(status.extension);
       setCompanion(status.companion);
+      setHintKey(status.hintKey);
       if (status.companion) onConnected?.();
     } finally {
       setChecking(false);
@@ -33,6 +37,7 @@ export function useBridgeConnectionStatus(onConnected?: () => void) {
     companion,
     connected: companion,
     checking,
+    hintKey,
     refresh,
   };
 }

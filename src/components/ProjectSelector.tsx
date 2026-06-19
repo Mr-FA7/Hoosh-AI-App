@@ -193,6 +193,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
             <div style={{ marginTop: '12px' }}>
               <BridgeStatusLed
                 connected={bridgeStatus.connected}
+                extension={bridgeStatus.extension}
                 checking={bridgeStatus.checking}
                 prominent
               />
@@ -367,7 +368,11 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
 
         <div style={{ padding: '10px 24px 14px', display: 'flex', justifyContent: 'space-between', opacity: 0.55, fontSize: '11px', borderTop: '1px solid hsl(var(--border) / 0.2)' }}>
           {isHostedWebApp() ? (
-            <BridgeStatusLed connected={bridgeStatus.connected} checking={bridgeStatus.checking} />
+            <BridgeStatusLed
+              connected={bridgeStatus.connected}
+              extension={bridgeStatus.extension}
+              checking={bridgeStatus.checking}
+            />
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Laptop size={11} /> {tx(runtime.labelKey)}</span>
           )}

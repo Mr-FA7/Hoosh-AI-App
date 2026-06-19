@@ -9,6 +9,7 @@ type BridgeStatus = {
   companion: boolean;
   connected: boolean;
   checking: boolean;
+  hintKey?: 'bridge.hintNoExtension' | 'bridge.hintNoCompanion' | 'bridge.hintRefreshPage';
   refresh: () => Promise<void>;
 };
 
@@ -19,7 +20,7 @@ type Props = {
 
 const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
   const { t } = useI18n();
-  const { extension, companion, connected, checking, refresh } = status;
+  const { extension, companion, connected, checking, hintKey, refresh } = status;
 
   if (!isHostedWebApp()) return null;
 
@@ -67,8 +68,24 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
           <Plug size={16} /> {t('bridge.title')}
         </div>
-        <BridgeStatusLed connected={connected} checking={checking} />
+        <BridgeStatusLed connected={connected} extension={extension} checking={checking} />
       </div>
+
+      {hintKey && !connected && !checking && (
+        <p style={{
+          fontSize: '11px',
+          color: extension && !companion ? '#f97316' : 'hsl(0 72% 55%)',
+          fontWeight: 600,
+          marginBottom: compact ? '8px' : '12px',
+          lineHeight: 1.55,
+          padding: '8px 10px',
+          borderRadius: '8px',
+          background: extension && !companion ? 'rgba(249,115,22,0.08)' : 'rgba(239,68,68,0.08)',
+          border: `1px solid ${extension && !companion ? 'rgba(249,115,22,0.25)' : 'rgba(239,68,68,0.25)'}`,
+        }}>
+          {t(hintKey)}
+        </p>
+      )}
 
       {compact ? (
         <>

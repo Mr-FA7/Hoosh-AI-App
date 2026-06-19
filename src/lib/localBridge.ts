@@ -27,12 +27,22 @@ export function waitForBridgeExtension(timeoutMs = 4000): Promise<boolean> {
   if (isBridgeExtensionInstalled()) return Promise.resolve(true);
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
+    const onReady = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.source === BRIDGE_SOURCE && event.data?.type === 'hoosh-bridge-ready') {
+        window.removeEventListener('message', onReady);
+        resolve(isBridgeExtensionInstalled());
+      }
+    };
+    window.addEventListener('message', onReady);
     const tick = () => {
       if (isBridgeExtensionInstalled()) {
+        window.removeEventListener('message', onReady);
         resolve(true);
         return;
       }
       if (Date.now() >= deadline) {
+        window.removeEventListener('message', onReady);
         resolve(false);
         return;
       }
@@ -52,11 +62,11 @@ function bridgeFetchRaw(
     const id = nextId();
     const timeout = window.setTimeout(() => {
       window.removeEventListener('message', onMessage);
-      reject(new Error('Local bridge timeout'));
+      reject(new Error('Local bridge timeout — refresh aihoosh.com after installing the extension'));
     }, 15000);
 
     const onMessage = (event: MessageEvent) => {
-      if (event.source !== window) return;
+      if (event.origin !== window.location.origin) return;
       const msg = event.data;
       if (!msg || msg.source !== BRIDGE_SOURCE || msg.id !== id) return;
       window.clearTimeout(timeout);
@@ -87,14 +97,14 @@ function bridgeFetchRaw(
           headers,
         },
       },
-      '*'
+      window.location.origin
     );
   });
 }
 
 export async function probeLocalBridge(force = false): Promise<boolean> {
   if (!isBridgeExtensionInstalled()) {
-    const found = await waitForBridgeExtension(1500);
+    const found = await waitForBridgeExtension(3000);
     if (!found) {
       bridgeReachable = false;
       return false;
@@ -103,8 +113,8 @@ export async function probeLocalBridge(force = false): Promise<boolean> {
   if (!force && bridgeReachable !== null) return bridgeReachable;
   if (!force && bridgeProbeInflight) return bridgeProbeInflight;
 
-  bridgeProbeInflight = bridgeFetchRaw('GET', '/api/v3/project/path')
-    .then((r) => r.status >= 200 && r.status < 500)
+  bridgeProbeInflight = bridgeFetchRaw('GET', '/api/v3/system/health')
+    .then((r) => r.status === 200)
     .catch(() => false)
     .finally(() => {
       bridgeProbeInflight = null;
@@ -133,4 +143,13 @@ export async function bridgeDelete(path: string, body?: unknown): Promise<Bridge
 
 export function shouldUseLocalBridge(): boolean {
   return bridgeReachable === true;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.source === BRIDGE_SOURCE && event.data?.type === 'hoosh-bridge-ready') {
+      resetBridgeProbeCache();
+    }
+  });
 }

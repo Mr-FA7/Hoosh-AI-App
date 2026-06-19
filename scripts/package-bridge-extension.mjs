@@ -33,7 +33,7 @@ function main() {
   zipDir(EXT_FILES, extDir, path.join(publicDir, 'hoosh-local-bridge.zip'));
 
   zipDir(
-    ['Start-Hoosh-Bridge.bat', 'Start-Hoosh-Bridge.ps1', 'README.md'],
+    ['Start-Hoosh-Bridge.bat', 'Start-Hoosh-Bridge.ps1', 'Start-HooshBridge-Auto.bat', 'Start-HooshBridge-Auto.ps1', 'Register-HooshExtension.ps1', 'README.md'],
     installDir,
     path.join(publicDir, 'hoosh-bridge-setup-win.zip')
   );

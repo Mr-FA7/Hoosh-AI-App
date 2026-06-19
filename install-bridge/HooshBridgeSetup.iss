@@ -5,7 +5,7 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Hoosh AI"
 #define MyAppURL "https://aihoosh.com/"
-#define MyAppExeName "open-hoosh.cmd"
+#define MyAppExeName "Start-HooshBridge-Auto.bat"
 #define StagingDir "..\\build\\win-bridge-staging"
 
 [Setup]
@@ -44,6 +44,8 @@ Source: "{#StagingDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recurs
 Source: "{#StagingDir}\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StagingDir}\win\*.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StagingDir}\win\*.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\win\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\win\*.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Open aihoosh.com with local bridge"
@@ -55,6 +57,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HooshLocalBridge"; ValueData: """{app}\run-companion-hidden.vbs"""; Tasks: autostart; Flags: uninsdeletevalue
 
 [Run]
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Register-HooshExtension.ps1"""; Flags: runhidden waituntilterminated
 Filename: "{app}\start-companion.cmd"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Open aihoosh.com now"; Flags: postinstall nowait skipifsilent shellexec
 

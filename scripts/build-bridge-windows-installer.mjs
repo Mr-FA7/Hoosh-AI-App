@@ -180,6 +180,10 @@ function stageExtension() {
 
 function stageLaunchers() {
   copyDir(path.join(root, 'install-bridge', 'win'), path.join(staging, 'win'));
+  for (const name of ['Start-HooshBridge-Auto.ps1', 'Start-HooshBridge-Auto.bat', 'Register-HooshExtension.ps1']) {
+    const src = path.join(root, 'install-bridge', name);
+    if (fs.existsSync(src)) copyFile(src, path.join(staging, name));
+  }
 }
 
 function findIscc() {

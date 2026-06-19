@@ -3,9 +3,9 @@ import { FolderOpen, PlusCircle, Laptop, Rocket, ShieldCheck, Clock, ChevronRigh
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE as API } from '../apiBase';
-import { browseFolderPath } from '../lib/browseFolder';
+import { browseFolderPath, type BrowseFolderPurpose } from '../lib/browseFolder';
 import { useRuntimeEnv } from '../hooks/useRuntimeEnv';
-import { listRecentWebProjects } from '../lib/webWorkspace';
+import { isRealFilesystemPath, isWebProjectRoot, listRecentWebProjects } from '../lib/webWorkspace';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
@@ -62,26 +62,44 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
       });
   }, []);
 
-  const browseFolder = async (setter: (p: string) => void) => {
-    const result = await browseFolderPath();
+  const browseFolder = async (setter: (p: string) => void, purpose: BrowseFolderPurpose) => {
+    const result = await browseFolderPath({ purpose });
     if (result.ok) {
       setter(result.path);
       return;
     }
     if (result.canceled) return;
     const key = result.errorKey || 'project.folderPickerFailed';
-    const base = tx(key);
-    window.alert(result.detail ? `${base}\n\n${result.detail}` : base);
+    window.alert(tx(key));
   };
 
   const handleOpen = () => {
-    if (!path.trim()) { setIsError(true); return; }
-    onSelect(path.trim());
+    const trimmed = path.trim();
+    if (!trimmed) { setIsError(true); return; }
+    if (!isWebProjectRoot(trimmed) && !runtime.usesCompanionApi) {
+      window.alert(tx('project.openRequiresImportOrCompanion'));
+      return;
+    }
+    onSelect(trimmed);
   };
 
   const handleCreate = async () => {
-    if (!newName.trim()) { setCreateError('Project name is required'); return; }
-    if (!newParent.trim()) { setCreateError('Destination folder is required'); return; }
+    if (!runtime.usesCompanionApi) {
+      setCreateError(tx('project.createRequiresCompanion'));
+      return;
+    }
+    if (!newName.trim()) {
+      setCreateError(tx('project.nameRequired'));
+      return;
+    }
+    if (!newParent.trim()) {
+      setCreateError(tx('project.destinationRequired'));
+      return;
+    }
+    if (!isRealFilesystemPath(newParent)) {
+      setCreateError(tx('project.createNeedsLocalPath'));
+      return;
+    }
     setIsCreating(true);
     setCreateError('');
     try {
@@ -94,10 +112,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
       if (r.data?.ok) {
         onSelect(r.data.path);
       } else {
-        setCreateError(r.data?.error || 'Failed to create project');
+        setCreateError(r.data?.error || tx('project.createFailed'));
       }
     } catch (e: any) {
-      setCreateError(e?.response?.data?.error || e?.message || 'Failed to create project');
+      setCreateError(e?.response?.data?.error || e?.message || tx('project.createFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -242,7 +260,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
                         borderRight: 'none', borderRadius: '10px 0 0 10px',
                         color: '#fff', fontSize: '13px', outline: 'none'
                       }} />
-                    <BrowseBtn onClick={() => browseFolder(setPath)} />
+                    <BrowseBtn onClick={() => browseFolder(setPath, 'open-project')} />
                   </div>
                   {isError && <p style={{ color: 'hsl(0 100% 60%)', fontSize: '11px', marginBottom: '10px' }}>{tx('project.pathError')}</p>}
                   {runtime.usesWebWorkspace && (
@@ -258,6 +276,11 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
               </motion.div>
             ) : (
               <motion.div key="new" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+                {!runtime.usesCompanionApi && (
+                  <div style={{ padding: '12px 14px', marginBottom: '14px', background: 'hsl(45 100% 50% / 0.08)', border: '1px solid hsl(45 100% 50% / 0.25)', borderRadius: '10px', fontSize: '12px', color: 'hsl(45 90% 70%)' }}>
+                    {tx('project.createRequiresCompanion')}
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1 }}>
@@ -274,8 +297,13 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
                       <input type="text" placeholder="/Users/username/projects" value={newParent}
                         onChange={(e) => { setNewParent(e.target.value); setCreateError(''); }}
                         style={{ flex: 1, padding: '0 14px', background: 'hsl(0 0% 0% / 0.3)', border: '1px solid hsl(var(--border))', borderRight: 'none', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: '13px', outline: 'none' }} />
-                      <BrowseBtn onClick={() => browseFolder(setNewParent)} />
+                      <BrowseBtn onClick={() => browseFolder(setNewParent, 'pick-destination')} />
                     </div>
+                    {runtime.usesCompanionApi && (
+                      <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '11px', marginTop: '6px' }}>
+                        {tx('project.destinationHint')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -299,7 +327,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({ onSelect, onOpenSetti
                     </div>
                   )}
 
-                  <button className="btn-primary" onClick={handleCreate} disabled={isCreating || !newName.trim()}
+                  <button className="btn-primary" onClick={handleCreate} disabled={isCreating || !newName.trim() || !runtime.usesCompanionApi}
                     style={{ background: 'hsl(var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', opacity: (!newName.trim() || isCreating) ? 0.6 : 1 }}>
                     <PlusCircle size={15} /> {isCreating ? tx('project.creating') : tx('project.createProject')}
                   </button>

@@ -101,7 +101,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, projectRoot = null, 
   };
 
   const handleBrowseProjectPath = async () => {
-    const result = await browseFolderPath();
+    const result = await browseFolderPath({ purpose: 'pick-destination' });
     if (result.ok) {
       setNewPath(result.path);
       return;

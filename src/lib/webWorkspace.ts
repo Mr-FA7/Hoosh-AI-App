@@ -74,6 +74,13 @@ export function isWebProjectRoot(root: string | null | undefined): boolean {
   return typeof root === 'string' && root.startsWith('web://');
 }
 
+export function isRealFilesystemPath(value: string | null | undefined): boolean {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  if (isWebProjectRoot(v)) return false;
+  return true;
+}
+
 export function getActiveWebProjectId(): string | null {
   return activeProjectId;
 }

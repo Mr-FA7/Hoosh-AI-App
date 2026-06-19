@@ -4,6 +4,8 @@ import { getRuntimeEnv } from './companionProbe';
 import { pickFolderFromBrowser } from './pickFolder';
 import { importFolderFromFileList } from './webWorkspace';
 
+export type BrowseFolderPurpose = 'open-project' | 'pick-destination';
+
 export type BrowseFolderResult =
   | { ok: true; path: string }
   | { ok: false; canceled?: boolean; errorKey?: string; detail?: string };
@@ -13,6 +15,10 @@ declare global {
     electronAPI?: { openFolder: () => Promise<{ canceled: boolean; path?: string }> };
   }
 }
+
+export type BrowseFolderOptions = {
+  purpose?: BrowseFolderPurpose;
+};
 
 async function importFromBrowserPicker(): Promise<BrowseFolderResult> {
   const files = await pickFolderFromBrowser();
@@ -40,26 +46,49 @@ async function tryCompanionFolderPicker(): Promise<BrowseFolderResult | null> {
   }
 }
 
-export async function browseFolderPath(): Promise<BrowseFolderResult> {
-  const env = await getRuntimeEnv();
-
-  if (env.surface === 'electron' && window.electronAPI?.openFolder) {
+async function tryNativeFolderPicker(): Promise<BrowseFolderResult | null> {
+  if (window.electronAPI?.openFolder) {
     try {
       const result = await window.electronAPI.openFolder();
       if (result?.canceled) return { ok: false, canceled: true };
-      const path = String(result?.path || '').trim();
-      if (path) return { ok: true, path };
+      const picked = String(result?.path || '').trim();
+      if (picked) return { ok: true, path: picked };
     } catch (err) {
       console.warn('[browseFolder] electronAPI.openFolder failed', err);
     }
   }
 
-  if (env.usesCompanionApi) {
-    const companion = await tryCompanionFolderPicker();
-    if (companion) return companion;
+  const companion = await tryCompanionFolderPicker();
+  if (companion) return companion;
+  return null;
+}
+
+/** Pick a folder on disk (companion/Electron). Never imports into browser memory. */
+export async function browseDestinationFolder(): Promise<BrowseFolderResult> {
+  const env = await getRuntimeEnv();
+  if (!env.usesCompanionApi) {
+    return { ok: false, errorKey: 'project.createRequiresCompanion' };
   }
 
-  if (env.usesWebWorkspace || env.isMobile) {
+  const native = await tryNativeFolderPicker();
+  if (native) return native;
+
+  return { ok: false, errorKey: 'project.createRequiresCompanion' };
+}
+
+/** Open/import a project folder — web import only when opening, not for create destination. */
+export async function browseFolderPath(options: BrowseFolderOptions = {}): Promise<BrowseFolderResult> {
+  const purpose = options.purpose ?? 'open-project';
+
+  if (purpose === 'pick-destination') {
+    return browseDestinationFolder();
+  }
+
+  const env = await getRuntimeEnv();
+  const native = await tryNativeFolderPicker();
+  if (native) return native;
+
+  if (env.usesWebWorkspace) {
     const browser = await importFromBrowserPicker();
     if (browser.ok || browser.canceled) return browser;
     return {

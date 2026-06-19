@@ -1,0 +1,6 @@
+{
+  "apphosting": {
+    "backendId": "hoosh",
+    "location": "us-east4"
+  }
+}

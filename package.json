@@ -7,7 +7,7 @@
     "dev": "concurrently -n companion,vite -c blue,green \"nodemon companion.js\" \"vite\"",
     "companion": "nodemon companion.js",
     "companion:fresh": "FA7_PORT=3011 node companion.js",
-    "start": "npm run dev",
+    "start": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:start": "concurrently -n app,electron -c green,magenta \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
@@ -18,7 +18,7 @@
     "smoke": "node scripts/smoke-test.js",
     "media:setup": "node scripts/media-setup.js --force-recreate",
     "media:setup:stacks": "node scripts/media-setup.js --force-recreate --stacks",
-    "media:status": "node scripts/media-setup.js --status",
+    "media:status": "node scripts/media-setup.js --status"
   },
   "build": {
     "appId": "com.fa7.os",

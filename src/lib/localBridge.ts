@@ -28,7 +28,6 @@ export function waitForBridgeExtension(timeoutMs = 4000): Promise<boolean> {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
     const onReady = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
       if (event.data?.source === BRIDGE_SOURCE && event.data?.type === 'hoosh-bridge-ready') {
         window.removeEventListener('message', onReady);
         resolve(isBridgeExtensionInstalled());
@@ -66,7 +65,6 @@ function bridgeFetchRaw(
     }, 15000);
 
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
       const msg = event.data;
       if (!msg || msg.source !== BRIDGE_SOURCE || msg.id !== id) return;
       window.clearTimeout(timeout);
@@ -97,7 +95,7 @@ function bridgeFetchRaw(
           headers,
         },
       },
-      window.location.origin
+      '*',
     );
   });
 }
@@ -147,7 +145,6 @@ export function shouldUseLocalBridge(): boolean {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin) return;
     if (event.data?.source === BRIDGE_SOURCE && event.data?.type === 'hoosh-bridge-ready') {
       resetBridgeProbeCache();
     }

@@ -7,7 +7,11 @@ function markReady() {
 }
 
 function sendBridgeResponse(id, payload) {
-  window.postMessage({ source: BRIDGE_SOURCE, id, ...payload }, window.location.origin);
+  document.dispatchEvent(
+    new CustomEvent('hoosh-bridge-response', {
+      detail: { source: BRIDGE_SOURCE, id, ...payload },
+    })
+  );
 }
 
 function forwardToBackground(id, payload) {
@@ -47,20 +51,36 @@ function pingCompanion() {
   }
 }
 
-window.addEventListener('message', (event) => {
-  if (event.origin !== window.location.origin) return;
-  const data = event.data;
+function injectPageBridge() {
+  if (document.documentElement?.dataset?.hooshBridgePage === '1') return;
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('bridge-page.js');
+  script.onload = () => {
+    script.remove();
+    if (document.documentElement) document.documentElement.dataset.hooshBridgePage = '1';
+    markReady();
+  };
+  script.onerror = () => markReady();
+  (document.head || document.documentElement).appendChild(script);
+}
+
+document.addEventListener('hoosh-bridge-fetch', (event) => {
+  const data = event.detail;
   if (!data || data.source !== PAGE_SOURCE || data.type !== 'hoosh-bridge-fetch') return;
   forwardToBackground(data.id, data.payload);
 });
 
+injectPageBridge();
 markReady();
 pingCompanion();
 window.setInterval(pingCompanion, 10000);
 
 window.addEventListener('DOMContentLoaded', () => {
+  injectPageBridge();
   markReady();
   pingCompanion();
 });
 
-window.postMessage({ source: BRIDGE_SOURCE, type: 'hoosh-bridge-ready' }, window.location.origin);
+document.dispatchEvent(new CustomEvent('hoosh-bridge-response', {
+  detail: { source: BRIDGE_SOURCE, type: 'hoosh-bridge-ready' },
+}));

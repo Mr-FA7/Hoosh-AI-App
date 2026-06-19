@@ -10,7 +10,7 @@ const extDir = path.join(root, 'extensions', 'hoosh-local-bridge');
 const publicDir = path.join(root, 'public');
 const installDir = path.join(root, 'install-bridge');
 
-const EXT_FILES = ['manifest.json', 'background.js', 'content.js', 'README.md', 'icon.svg'];
+const EXT_FILES = ['manifest.json', 'background.js', 'content.js', 'bridge-page.js', 'README.md', 'icon.svg'];
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });

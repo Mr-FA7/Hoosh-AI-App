@@ -17,6 +17,13 @@ export function isHostedWebApp(): boolean {
   return host !== 'localhost' && host !== '127.0.0.1';
 }
 
+/** True when the UI is served from localhost and may talk to a local companion. */
+export function isLocalCompanionWeb(): boolean {
+  if (typeof window === 'undefined' || isElectron()) return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
 export function prefersBrowserFolderPicker(): boolean {
-  return isMobileWeb() || isHostedWebApp();
+  return isHostedWebApp() || isMobileWeb() || !isLocalCompanionWeb();
 }

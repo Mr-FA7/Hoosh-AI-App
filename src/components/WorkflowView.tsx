@@ -28,8 +28,10 @@ type Flow = {
 
 const NODE_PALETTE = [
   'trigger.manual', 'trigger.webhook', 'trigger.schedule', 'trigger.poll',
-  'action.agent', 'action.http', 'action.tool', 'action.stackUp', 'action.stackDown',
-  'action.skill', 'action.mcp', 'logic.delay', 'logic.if', 'human.approval'
+  'action.agent', 'action.http', 'action.tool', 'action.media', 'action.set', 'action.flowCall',
+  'action.stackUp', 'action.stackDown', 'action.skill', 'action.mcp',
+  'logic.delay', 'logic.if', 'logic.switch', 'logic.merge', 'logic.splitBatch',
+  'human.approval'
 ];
 
 function flowToEdges(flow: Flow): Edge[] {

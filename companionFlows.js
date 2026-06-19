@@ -107,10 +107,54 @@ function mountFlowRoutes(app, getProjectRoot, getFlowEngine) {
     try {
       const engine = getFlowEngine();
       if (!engine) return res.status(500).json({ ok: false, error: 'Flow engine unavailable' });
-      const run = await engine.runWebhook(req.params.secret, req.body || {});
+      const run = await engine.runWebhook(req.params.secret, req.body || {}, req.headers || {});
       res.json({ ok: run.status !== 'failed', run });
     } catch (e) {
       res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/flows/runs/:id/resume', async (req, res) => {
+    try {
+      const engine = getFlowEngine();
+      if (!engine) return res.status(500).json({ ok: false, error: 'Flow engine unavailable' });
+      const run = await engine.resume(req.params.id, {
+        approved: req.body?.approved !== false,
+        reason: req.body?.reason,
+        input: req.body?.input
+      });
+      res.json({ ok: run.status !== 'failed', run });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/flows/credentials', async (_req, res) => {
+    try {
+      const { listCredentials } = require('./lib/integrationCredentials');
+      res.json({ ok: true, credentials: await listCredentials() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/flows/credentials', async (req, res) => {
+    try {
+      const { saveCredential } = require('./lib/integrationCredentials');
+      const saved = await saveCredential(req.body || {});
+      res.json({ ok: true, credential: saved });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/flows/credentials/:id', async (req, res) => {
+    try {
+      const { deleteCredential } = require('./lib/integrationCredentials');
+      await deleteCredential(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 }

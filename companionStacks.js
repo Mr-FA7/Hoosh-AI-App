@@ -10,6 +10,9 @@ const {
   inspectContainer, listNetworks, listVolumes, containerStats, engineInfo
 } = require('./lib/containerManager');
 const { kubePlay, kubeDown } = require('./lib/kubePlay');
+const ext = require('./lib/containerEngineExtended');
+const podman = require('./lib/podmanExtras');
+const devc = require('./lib/devcontainerBridge');
 
 function mountStacksRoutes(app, getProjectRoot) {
   app.get('/api/v3/stacks/runtime', async (_req, res) => {
@@ -309,6 +312,265 @@ function mountStacksRoutes(app, getProjectRoot) {
       if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
       const result = await kubeDown(root, req.body?.file, { volumes: !!req.body?.volumes });
       res.json(result);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/stacks/config', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
+      const runner = new StackRunner(root);
+      res.json(await runner.config({ composeFile: req.query?.composeFile }));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/registry/login', async (req, res) => {
+    try {
+      res.json(await ext.registryLogin(req.body || {}));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/registry/logout', async (req, res) => {
+    try {
+      res.json(await ext.registryLogout(req.body?.server));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/images/build', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      res.json(await ext.buildImage({ ...req.body, context: req.body?.context || root || '.' }));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/images/push', async (req, res) => {
+    try {
+      res.json(await ext.pushImage(req.body?.image));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/images/tag', async (req, res) => {
+    try {
+      res.json(await ext.tagImage(req.body?.source, req.body?.target));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/containers/images/:ref', async (req, res) => {
+    try {
+      res.json(await ext.removeImage(req.params.ref, !!req.query?.force));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/run', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      res.json(await ext.runContainer({ ...req.body, cwd: root }));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/containers/:id/logs', async (req, res) => {
+    try {
+      res.json(await ext.containerLogs(req.params.id, { tail: req.query?.tail, follow: !!req.query?.follow }));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/cp', async (req, res) => {
+    try {
+      res.json(await ext.containerCp(req.body?.src, req.body?.dest));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/containers/system/df', async (_req, res) => {
+    try {
+      res.json(await ext.systemDf());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/system/prune', async (req, res) => {
+    try {
+      res.json(await ext.systemPrune(req.body || {}));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/prune/images', async (_req, res) => {
+    try {
+      res.json(await ext.imagePrune());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/prune/volumes', async (_req, res) => {
+    try {
+      res.json(await ext.volumePrune());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/prune/networks', async (_req, res) => {
+    try {
+      res.json(await ext.networkPrune());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/networks', async (req, res) => {
+    try {
+      res.json(await ext.networkCreate(req.body?.name, req.body?.driver));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/containers/networks/:name', async (req, res) => {
+    try {
+      res.json(await ext.networkRemove(req.params.name));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/volumes', async (req, res) => {
+    try {
+      res.json(await ext.volumeCreate(req.body?.name, req.body?.driver));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/containers/volumes/:name', async (req, res) => {
+    try {
+      res.json(await ext.volumeRemove(req.params.name));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/containers/pods', async (_req, res) => {
+    try {
+      res.json(await podman.listPods());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/pods/:action', async (req, res) => {
+    try {
+      const map = { start: podman.podStart, stop: podman.podStop, remove: podman.podRemove };
+      const fn = map[req.params.action];
+      if (!fn) return res.status(400).json({ ok: false, error: 'Unknown action' });
+      res.json(await fn(req.body?.name || req.body?.id));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/containers/secrets', async (_req, res) => {
+    try {
+      res.json(await podman.listSecrets());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/secrets', async (req, res) => {
+    try {
+      res.json(await podman.createSecret(req.body?.name, req.body?.data));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/v3/containers/secrets/:name', async (req, res) => {
+    try {
+      res.json(await podman.removeSecret(req.params.name));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get('/api/v3/containers/machine', async (_req, res) => {
+    try {
+      res.json(await podman.machineInfo());
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/containers/machine/:action', async (req, res) => {
+    try {
+      const fn = req.params.action === 'start' ? podman.machineStart : podman.machineStop;
+      res.json(await fn(req.body?.name));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/devcontainer/up', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
+      res.json(await devc.devcontainerUp(root, req.body || {}));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/devcontainer/down', async (_req, res) => {
+    try {
+      const root = getProjectRoot();
+      if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
+      res.json(await devc.devcontainerDown(root));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/devcontainer/exec', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
+      res.json(await devc.devcontainerExec(root, req.body?.command));
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/v3/devcontainer/generate', async (req, res) => {
+    try {
+      const root = getProjectRoot();
+      if (!root) return res.status(400).json({ ok: false, error: 'No project open' });
+      const { readDevProfile: readProfile } = require('./lib/hooshDevProfile');
+      const profile = await readProfile(root);
+      res.json(await devc.generateDevcontainerJson(root, { ...profile, ...req.body }));
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

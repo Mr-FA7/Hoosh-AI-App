@@ -1,11 +1,14 @@
 const os = require('os');
+const path = require('path');
 const { execSync } = require('child_process');
 
 class ResourceManager {
     constructor() {
         this.RAM_BUFFER_PERCENT = 0.25;
         this.VRAM_BUFFER_PERCENT = 0.20;
-        this.OFFLINE_NEEDED_PATH = '/Users/mr.fa7/Desktop/needed';
+        this.OFFLINE_NEEDED_PATH = process.env.FA7_OFFLINE_NEEDED_PATH
+            || process.env.FA7_EXAMPLE_ROOT
+            || path.join(os.homedir(), 'Desktop', 'example');
     }
 
     getHardwareStats() {
@@ -170,6 +173,14 @@ class ResourceManager {
                 return models.includes(name);
             } else if (type === 'huggingface_model') {
                 return this.checkLocalNeeded(name);
+            } else if (type === 'cli') {
+                try {
+                    const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`;
+                    execSync(cmd, { stdio: 'ignore' });
+                    return true;
+                } catch (e) {
+                    return false;
+                }
             }
         } catch (e) {
             return false;
@@ -187,6 +198,22 @@ class ResourceManager {
             ],
             'negah': [
                 { type: 'ollama_model', name: 'llava' } // Ensure vision model is present
+            ],
+            'media-whisper': [
+                { type: 'python_pip', name: 'openai-whisper' },
+                { type: 'cli', name: 'whisper' }
+            ],
+            'media-tts': [
+                { type: 'python_pip', name: 'TTS' },
+                { type: 'cli', name: 'piper' }
+            ],
+            'media-ocr': [
+                { type: 'python_pip', name: 'paddleocr' },
+                { type: 'cli', name: 'paddleocr' }
+            ],
+            'media-separate': [
+                { type: 'python_pip', name: 'demucs' },
+                { type: 'cli', name: 'demucs' }
             ]
         };
         return deps[feature] || [];

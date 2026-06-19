@@ -1,0 +1,70 @@
+# FA7 Media Studio — full bundle (Whisper + Piper + PaddleOCR + n8n)
+services:
+  whisper-api:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: fa7-whisper
+    restart: unless-stopped
+    ports:
+      - "9000:8000"
+    environment:
+      WHISPER__MODEL: Systran/faster-whisper-base
+    volumes:
+      - whisper-cache:/root/.cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/health || exit 1"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 90s
+
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    container_name: fa7-piper
+    restart: unless-stopped
+    ports:
+      - "5000:10200"
+    command: --voice en_US-lessac-medium
+    volumes:
+      - piper-data:/data
+
+  paddleocr:
+    image: paddlepaddle/paddle:3.0.0
+    container_name: fa7-paddleocr
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    working_dir: /app
+    command: >
+      sh -c "pip install -q paddleocr paddlex 2>/dev/null;
+      python -c \"from http.server import HTTPServer,BaseHTTPRequestHandler;
+      class H(BaseHTTPRequestHandler):
+        def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
+      HTTPServer(('0.0.0.0',8080),H).serve_forever()\""
+    volumes:
+      - ./ocr-input:/input
+      - ./ocr-output:/output
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: fa7-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      GENERIC_TIMEZONE: UTC
+    volumes:
+      - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  whisper-cache:
+  piper-data:
+  n8n-data:

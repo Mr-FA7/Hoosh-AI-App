@@ -1,0 +1,18 @@
+# Coqui TTS server — FA7 Media Studio
+services:
+  tts:
+    image: ghcr.io/coqui-ai/tts:latest
+    ports:
+      - "5002:5002"
+    command: tts-server --port 5002
+    volumes:
+      - tts-models:/root/.local/share/tts
+    healthcheck:
+      test: ["CMD-SHELL", "echo ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  tts-models:

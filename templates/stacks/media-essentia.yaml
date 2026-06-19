@@ -1,0 +1,9 @@
+# Essentia MIR — FA7 Media Studio (AGPL boundary)
+services:
+  essentia:
+    image: mtgupf/essentia:latest
+    volumes:
+      - ./essentia-input:/input
+      - ./essentia-output:/output
+    working_dir: /workspace
+    command: sleep infinity

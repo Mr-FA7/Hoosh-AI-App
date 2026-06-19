@@ -1,11 +1,11 @@
 import React from 'react';
-import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle, Layers } from 'lucide-react';
+import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle, Layers, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useI18n } from '../i18n/LocaleContext';
 import './Sidebar.css';
 
 interface SidebarProps {
-  viewMode: 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems';
+  viewMode: 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems';
   setViewMode: (mode: any) => void;
   isDesktop?: boolean;
 }
@@ -19,6 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
     { id: 'vmlab', icon: <MonitorPlay size={20} />, labelKey: 'sidebar.vmMatrix' as const },
     { id: 'stacks', icon: <Layers size={20} />, labelKey: 'sidebar.stacks' as const },
     { id: 'workflows', icon: <GitBranch size={20} />, labelKey: 'sidebar.workflows' as const },
+    { id: 'media', icon: <Sparkles size={20} />, labelKey: 'sidebar.mediaStudio' as const },
     { id: 'browser', icon: <Globe size={20} />, labelKey: 'sidebar.worldView' as const },
     { id: 'preview', icon: <PlayCircle size={20} />, labelKey: 'sidebar.activePreview' as const },
     { id: 'marketplace', icon: <Package size={20} />, labelKey: 'sidebar.giraMarketplace' as const },

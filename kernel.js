@@ -258,7 +258,8 @@ class AgentKernel {
 
         const skillBlock = this.skillPrompts ? `\n\n${this.skillPrompts}` : '';
         const { PLATFORM_TOOLS_DOC } = require('./lib/platformAgentTools');
-        const platformBlock = `\n\n${PLATFORM_TOOLS_DOC}`;
+        const { MEDIA_TOOLS_DOC } = require('./lib/mediaAgentTools');
+        const platformBlock = `\n\n${PLATFORM_TOOLS_DOC}\n\n${MEDIA_TOOLS_DOC}`;
         return `${baseRules}${learnedContext}${skillBlock}${platformBlock}${this.buildMcpToolsBlock()}\n\nROLE: ${role}\n${extra}${vaultHint}${voiceRules}${webHint}${memoryHint}`;
     }
 
@@ -793,6 +794,14 @@ class AgentKernel {
                     flowEngine: this._platformCtx?.flowEngine,
                     agentAutomation: this._platformCtx?.agentAutomation,
                     hitlGraph: this._platformCtx?.hitlGraph
+                });
+            }
+
+            const { isMediaTool, executeMediaTool } = require('./lib/mediaAgentTools');
+            if (isMediaTool(normalizedTool)) {
+                return executeMediaTool(normalizedTool, safeArgs, {
+                    projectRoot: this.projectRoot,
+                    kernel: this
                 });
             }
 

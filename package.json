@@ -16,7 +16,9 @@
     "test": "node scripts/test-security.js",
     "test:security": "node scripts/test-security.js",
     "smoke": "node scripts/smoke-test.js",
-    "smoke:verify": "HOOSH_API_BASE=http://localhost:3011 node scripts/smoke-test.js"
+    "media:setup": "node scripts/media-setup.js --force-recreate",
+    "media:setup:stacks": "node scripts/media-setup.js --force-recreate --stacks",
+    "media:status": "node scripts/media-setup.js --status",
   },
   "build": {
     "appId": "com.fa7.os",
@@ -49,6 +51,15 @@
       "companionUatMount.js",
       "companionStacks.js",
       "companionFlows.js",
+      "companionMedia.js",
+      "lib/mediaBootstrap.js",
+      "lib/mediaEnv.js",
+      "lib/mediaInstall.js",
+      "lib/mediaPipelines.js",
+      "lib/mediaCatalog.js",
+      "lib/mediaBridge.js",
+      "lib/mediaAgentTools.js",
+      "scripts/media-setup.js",
       "companionVmLab.js",
       "companionVmLabEmbeddedQemu.js",
       "companionOllamaRuntime.js",
@@ -64,6 +75,8 @@
       "preload.js",
       "package.json",
       "lib/**/*",
+      "templates/**/*",
+      "skills/**/*",
       "tools/**/*"
     ]
   },

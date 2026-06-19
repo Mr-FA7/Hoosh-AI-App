@@ -1,0 +1,18 @@
+# Kohya SS training GUI — FA7 Media Studio
+services:
+  kohya:
+    image: aiartistry/kohya_ss:latest
+    ports:
+      - "7861:7860"
+    volumes:
+      - ./kohya-datasets:/dataset
+      - ./kohya-output:/output
+      - ./kohya-models:/models
+    environment:
+      SAFETENSORS_FAST_GPU: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ok"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 120s

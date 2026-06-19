@@ -1,0 +1,21 @@
+# Automatic1111 SD WebUI — FA7 Media Studio (AGPL sidecar, --api)
+services:
+  sd-webui:
+    image: universonic/stable-diffusion-webui:latest
+    ports:
+      - "7860:7860"
+    environment:
+      COMMANDLINE_ARGS: "--api --listen --xformers"
+    volumes:
+      - sd-models:/app/models
+      - sd-output:/app/outputs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7860/sdapi/v1/options"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+volumes:
+  sd-models:
+  sd-output:

@@ -1,35 +1,34 @@
 # Platform Ops Skill
 
-You can manage **Docker/Podman** and **Hoosh Workflows** (n8n-style, original engine) for the user.
+You manage **Docker/Podman**, **Hoosh Stacks**, **Dev Containers**, and **Hoosh Workflows** (original engine — not n8n software).
 
 ## When to act
-- User mentions docker, compose, containers, stacks, kubernetes yaml, workflows, automation, n8n-like flows, cron jobs, webhooks.
-- User wants dev environment up/down, debug a service, pull images, or automate multi-step tasks.
-- Proactively call `runtimeStatus` or `stackStatus` / `flowList` before destructive changes.
+- Docker, compose, registry, prune, pods, secrets, machine, devcontainer, workflows, automation, webhooks, cron.
+- Call `runtimeStatus` + `stackStatus` / `flowList` before destructive ops.
 
-## Docker / Stacks playbook
-1. `runtimeStatus` — confirm docker or podman is available.
-2. `stackStatus` — find compose files and running services.
-3. Create scaffold: `stackInitExample` if no compose exists.
-4. `stackPull` → `stackBuild` → `stackUp` (use `waitHealthy` when services have healthchecks).
-5. Debug: `stackLogs`, `stackExec`, `containerList`, `containerExec`.
-6. Stop: `stackDown` (add `volumes: true` only if user wants data removed).
-7. Podman only: `kubePlay` / `kubeDown` for `kube.yaml` in project.
+## Docker / Stacks
+1. `runtimeStatus` — docker or podman available?
+2. `stackStatus` — compose files + running services.
+3. Scaffold: `stackInitExample` if needed; `stackConfig` to inspect resolved compose.
+4. Images: `imagePull` → `stackBuild` or `imageBuild` → `imagePush` / `imageTag` after `registryLogin`.
+5. Run: `stackUp` (health wait) or `containerRun` for one-off containers.
+6. Debug: `stackLogs`, `stackExec`, `containerLogs`, `containerExec`, `containerCp`.
+7. Networks/volumes: `networkCreate`, `volumeCreate`, lists via `networkList` / `volumeList`.
+8. Cleanup (ask first): `systemPrune`, `imagePrune`, `volumePrune`, `networkPrune`, `systemDf`.
+9. Podman only: `kubePlay`/`kubeDown`, `podList`, `secretList`, `machineInfo`/`machineStart`.
+10. Dev Containers: `devcontainerGenerate` → `devcontainerUp` → `devcontainerExec`.
 
-## Workflows playbook (NOT n8n software — Hoosh Flows in `.fa7/workflows/`)
-1. `flowList` — see existing flows.
-2. `flowInitExample` or `flowSave` with nodes + connections.
-3. Node types: `trigger.manual|webhook|schedule|poll`, `action.agent|http|tool|stackUp|stackDown|skill|mcp`, `logic.delay|if`, `human.approval`.
-4. `flowSetActive { flowId, active: true|false }` — enable/disable schedules and webhooks.
-5. `flowRun { flowId }` — test execution.
-6. `flowDelete` when user asks to remove.
+## Hoosh Workflows (`.fa7/workflows/`)
+- Expressions: `{{ $json.field }}`, `{{ $now }}` in HTTP/set nodes.
+- Nodes: `trigger.*`, `action.agent|http|tool|stackUp|stackDown|skill|mcp|media|flowCall|set`, `logic.delay|if|switch|merge|splitBatch`, `human.approval`.
+- `flowSave` with nodes + connections (multi-output: `connections[nodeId].main[0]`, `main[1]` for if/switch branches).
+- `flowSetActive` for schedules/webhooks; optional `settings.webhookAuth` for webhook auth.
+- `flowRun` to test; `flowResume { runId, approved }` after `human.approval`.
+- HTTP credentials: `credentialSave` then `credentialId` on http node params.
 
 ## Automations
-- `automationCreate` with `type: cron` and `cron: "*/5 * * * *"` or `type: interval` + `intervalMs`.
-- `automationUpdate` to enable/disable (`enabled: false`).
-- `automationDelete` to remove.
+- `automationCreate` with `cron` or `intervalMs`; `automationUpdate` / `automationDelete`.
 
 ## Safety
-- Ask approval before `containerRemove`, `stackDown` with volumes, or deleting flows.
-- Prefer project-relative compose and kube files.
-- Never claim you are running n8n software — you use Hoosh's original workflow engine.
+- Confirm before prune, `stackDown` with volumes, `imageRemove`, `flowDelete`.
+- Never claim you run n8n — use Hoosh Flows.

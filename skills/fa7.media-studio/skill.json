@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "fa7.media-studio",
+  "name": "Media Studio (Speech, Vision, Music, OCR)",
+  "version": "1.0.0",
+  "author": { "name": "FA7 Labs", "verified": true },
+  "category": "media",
+  "summary": "Whisper, TTS, Demucs, ComfyUI, PaddleOCR, video avatars — original FA7 bridges (no upstream code copies).",
+  "description": "Teaches agents to use media* tools: probe availability, init compose stacks, transcribe, TTS, separate audio, OCR, image gen, n8n sidecar.",
+  "systemPrompt": "./prompts/system.md",
+  "memoryScope": "project",
+  "permissions": {
+    "filesystem": "read",
+    "shell": { "allowlist": ["whisper", "piper", "tts", "demucs", "paddleocr", "ollama", "python", "python3"] },
+    "network": ["localhost"],
+    "mcp": [],
+    "secrets": []
+  },
+  "pricing": { "model": "free" }
+}

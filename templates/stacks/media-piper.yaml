@@ -1,0 +1,17 @@
+# Piper TTS HTTP — FA7 Media Studio
+services:
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    ports:
+      - "5000:10200"
+    command: --voice en_US-lessac-medium
+    volumes:
+      - piper-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "echo ok"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  piper-data:

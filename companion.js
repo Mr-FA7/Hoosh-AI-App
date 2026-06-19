@@ -23,6 +23,7 @@ const { mountUatRoutes } = require('./companionUatMount');
 const { mountVmLabRoutes } = require('./companionVmLab');
 const { mountStacksRoutes } = require('./companionStacks');
 const { mountFlowRoutes } = require('./companionFlows');
+const { mountMediaRoutes } = require('./companionMedia');
 const { FlowEngine } = require('./lib/flowEngine');
 const { listFlows } = require('./lib/flowStore');
 const { maybeAutoStartStack } = require('./lib/stackAutoStart');
@@ -227,6 +228,7 @@ async function main() {
     getHitl: () => hitlGraph
   });
   mountFlowRoutes(app, () => currentProjectRoot, () => flowEngine);
+  mountMediaRoutes(app, () => currentProjectRoot);
 
   async function refreshFlowSchedules() {
     if (!currentProjectRoot || !flowEngine) return;

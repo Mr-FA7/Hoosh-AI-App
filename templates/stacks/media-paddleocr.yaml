@@ -1,0 +1,17 @@
+# PaddleOCR API — FA7 Media Studio
+services:
+  paddleocr:
+    image: paddlepaddle/paddle:3.0.0
+    ports:
+      - "8080:8080"
+    working_dir: /app
+    command: sh -c "pip install -q paddleocr paddlex && python -m http.server 8080"
+    volumes:
+      - ./ocr-input:/input
+      - ./ocr-output:/output
+    healthcheck:
+      test: ["CMD-SHELL", "echo ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 180s

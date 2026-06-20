@@ -48,8 +48,18 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
         <p style={{ fontSize: 12, color: '#94a3b8' }}>Checking for local companion…</p>
       ) : (
         <>
+          {/* Chrome PNA permission alert */}
+          <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(234,179,8,.1)', border: '1px solid rgba(234,179,8,.35)', marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 4 }}>
+              ⚠️ مهم: وقتی Chrome می‌پرسد:
+            </p>
+            <p style={{ fontSize: 11, color: '#fde68a', lineHeight: 1.6, margin: 0 }}>
+              <strong>"aihoosh.com wants to access other apps on this device"</strong>
+              <br />→ حتماً <strong>Allow</strong> بزنید. بدون این، اتصال برقرار نمی‌شود.
+            </p>
+          </div>
           <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14, lineHeight: 1.6 }}>
-            برای دسترسی به فایل‌ها، ترمینال و AI لوکال، یک‌بار Companion رو نصب کنید — بدون نیاز به افزونه.
+            برای دسترسی به فایل‌ها، ترمینال و AI لوکال، یک‌بار Companion رو نصب کنید.
           </p>
 
           {/* Big download button */}

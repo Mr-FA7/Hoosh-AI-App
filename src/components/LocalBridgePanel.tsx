@@ -132,20 +132,40 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
             Run the installer → it sets up companion + extension automatically → restart Chrome → refresh this page.
           </p>
 
-          {/* MANUAL extension load */}
-          <details style={{ marginBottom: '14px' }}>
+          {/* MANUAL — Chrome */}
+          <details style={{ marginBottom: '10px' }}>
             <summary style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer', userSelect: 'none' }}>
-              Extension only / manual install
+              🌐 Chrome — load extension manually
             </summary>
             <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid hsl(var(--border))' }}>
-              {btn('/hoosh-local-bridge.zip', '⬇ Download extension zip')}
+              {btn('/hoosh-local-bridge.zip', '⬇ Chrome extension (.zip)')}
               <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '16px', margin: '8px 0 0', lineHeight: 1.7 }}>
                 <li>Unzip <code>hoosh-local-bridge.zip</code></li>
-                <li>Open Chrome → type <code>chrome://extensions</code></li>
+                <li>Open Chrome → go to <code>chrome://extensions</code></li>
                 <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
                 <li>Click <strong>Load unpacked</strong> → select the unzipped folder</li>
                 <li>Refresh this page</li>
               </ol>
+            </div>
+          </details>
+
+          {/* MANUAL — Firefox */}
+          <details style={{ marginBottom: '14px' }}>
+            <summary style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer', userSelect: 'none' }}>
+              🦊 Firefox — load extension manually
+            </summary>
+            <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid hsl(var(--border))' }}>
+              {btn('/hoosh-local-bridge-firefox.zip', '⬇ Firefox extension (.zip)')}
+              <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '16px', margin: '8px 0 0', lineHeight: 1.7 }}>
+                <li>Unzip <code>hoosh-local-bridge-firefox.zip</code></li>
+                <li>Open Firefox → go to <code>about:debugging#/runtime/this-firefox</code></li>
+                <li>Click <strong>Load Temporary Add-on…</strong></li>
+                <li>Select <code>manifest.json</code> inside the unzipped folder</li>
+                <li>Refresh this page</li>
+              </ol>
+              <p style={{ fontSize: '10px', color: 'hsl(var(--text-secondary))', marginTop: '6px' }}>
+                Note: Temporary add-ons are removed when Firefox restarts. For permanent install, use Firefox Developer Edition.
+              </p>
             </div>
           </details>
 

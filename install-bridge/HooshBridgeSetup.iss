@@ -27,7 +27,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-CloseApplications=no
+CloseApplications=yes
 UninstallDisplayIcon={app}\open-hoosh.cmd
 OutputDir=..\public
 
@@ -42,6 +42,7 @@ Name: "autostart"; Description: "Start companion when Windows starts"; GroupDesc
 Source: "{#StagingDir}\node\*"; DestDir: "{app}\node"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StagingDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StagingDir}\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\win\hoosh-local-bridge.crx"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#StagingDir}\win\*"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
@@ -54,28 +55,24 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HooshLocalBridge"; ValueData: """{app}\run-companion-hidden.vbs"""; Tasks: autostart; Flags: uninsdeletevalue
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Register-HooshExtension.ps1"""; Flags: runhidden waituntilterminated
-Filename: "{app}\start-companion.cmd"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "Open aihoosh.com now"; Flags: postinstall nowait skipifsilent shellexec
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Register-HooshExtension.ps1"""; StatusMsg: "Preparing extension files..."; Flags: runhidden waituntilterminated
+Filename: "{app}\start-companion.cmd"; WorkingDir: "{app}"; StatusMsg: "Starting companion..."; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Install-Extension-InYourChrome.ps1"""; Description: "Install extension in your Chrome (recommended)"; Flags: postinstall waituntilterminated skipifsilent
 
 [UninstallRun]
 Filename: "{app}\stop-companion.cmd"; Flags: runhidden waituntilterminated; RunOnceId: "StopCompanion"
 
 [Code]
 function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
 begin
+  { Kill any running companion (node.exe) so the installer can replace node.exe }
+  Exec('taskkill.exe', '/F /IM node.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := True;
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    { companion started via [Run] }
-  end;
 end;

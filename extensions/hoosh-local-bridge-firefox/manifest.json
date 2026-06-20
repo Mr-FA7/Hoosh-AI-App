@@ -1,0 +1,45 @@
+{
+  "manifest_version": 2,
+  "name": "Hoosh Local Bridge",
+  "version": "0.2.0",
+  "description": "Connects aihoosh.com to Hoosh companion on your computer (files, terminal, Ollama, LM Studio).",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "hoosh-bridge@aihoosh.com",
+      "strict_min_version": "91.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "http://127.0.0.1:3001/*",
+    "http://localhost:3001/*"
+  ],
+  "host_permissions": [
+    "https://aihoosh.com/*",
+    "https://www.aihoosh.com/*",
+    "https://*.aihoosh.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_title": "Hoosh Local Bridge",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://aihoosh.com/*",
+        "https://www.aihoosh.com/*",
+        "https://*.aihoosh.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    "bridge-page.js"
+  ]
+}

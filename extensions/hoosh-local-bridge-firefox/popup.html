@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hoosh Local Bridge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 300px;
+      font: 13px/1.45 system-ui, sans-serif;
+      background: #0f1419;
+      color: #e7ecf1;
+      padding: 14px;
+    }
+    h1 { font-size: 14px; margin-bottom: 10px; }
+    .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+    .status { display: flex; align-items: center; font-size: 12px; }
+    .ok { background: #22c55e; box-shadow: 0 0 8px #22c55e88; }
+    .bad { background: #ef4444; box-shadow: 0 0 8px #ef444488; }
+    label.switch { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: #3b82f6; }
+    button, a.btn {
+      display: block; width: 100%; text-align: center; border: none; border-radius: 8px;
+      padding: 9px 10px; margin-top: 8px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
+    }
+    .primary { background: #2563eb; color: #fff; }
+    .ghost { background: transparent; border: 1px solid #334155; color: #cbd5e1; }
+    .hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Hoosh Local Bridge</h1>
+  <div class="row">
+    <div class="status"><span id="dot" class="dot bad"></span><span id="companion">Checking…</span></div>
+    <button class="ghost" id="recheck" style="padding:4px 8px;font-size:11px;">↻ Recheck</button>
+  </div>
+  <button class="primary" id="openSite">Open aihoosh.com</button>
+  <p class="hint">Install companion from aihoosh.com to enable local file access.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -3406,9 +3406,27 @@ app.get('/api/ai/system-stats', (req, res) => {
       'سلام', 'درود', 'سلامم', 'سلام.', 'درود.', 'hi', 'hello', 'hey', 'yo'
     ]);
     if (greetingSet.has(p)) return true;
-    // Accept short greeting-like phrases such as "سلام خوبی؟"
     if (p.length <= 24 && /^(سلام|درود|hi|hello|hey)\b/.test(p)) return true;
     return false;
+  }
+
+  /** Returns true for conversational/question messages that should NOT trigger a mission */
+  function isConversationalQuestion(text) {
+    const p = String(text || '').trim().toLowerCase();
+    if (!p || p.length > 300) return false;
+    // Questions / confirmations / check-ins
+    const conversationalPatterns = [
+      /^(می‌?فهم|میفهم)/,          // میفهمی؟ میفهمم
+      /^(آیا|آیا می|میتونی|می‌?تونی)/,
+      /^(چی|چطور|کجا|کِی|کی|چرا|چقدر|چند)\b/,
+      /^(می‌?دونی|میدونی|بگو|توضیح)/,
+      /\?$/,                          // ends with question mark
+      /؟$/,                           // Persian question mark
+      /^(yes|no|ok|okay|بله|نه|آره|اره|باشه|ممنون|خوبه|عالی|درسته)\b/,
+      /^(کار می‌?کنه|کار میکنه|درست (شد|کار)|وصل (شد|هست))/,
+      /^(ببین|نگاه کن|ببینم|بررسی کن که)/,
+    ];
+    return conversationalPatterns.some(r => r.test(p));
   }
 
   function sanitizeText(value, fallback = '') {
@@ -3649,7 +3667,7 @@ app.get('/api/ai/system-stats', (req, res) => {
       // Override intent if mode is explicitly an autonomous one
       if (mode === 'plan' || mode === 'debug') {
           intent = 'mission';
-      } else if (mode === 'agent' && currentProjectRoot && !isSimpleGreeting(lastMessage)) {
+      } else if (mode === 'agent' && currentProjectRoot && !isSimpleGreeting(lastMessage) && !isConversationalQuestion(lastMessage)) {
           intent = 'mission';
       } else if (mode === 'ask') {
           intent = 'chat';

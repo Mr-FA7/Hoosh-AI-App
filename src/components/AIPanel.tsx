@@ -1838,6 +1838,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
           (window as unknown as { __fa7LastStreamId?: string }).__fa7LastStreamId = id;
         },
         onLine: ({ text, agentEvent }) => {
+          // Append text delta (normalizeLine already handles token→text mapping,
+          // so we must NOT also process agentEvent.token separately — that doubles output)
           if (text) {
             assistantAccum += text;
             appendAssistantDelta(text);
@@ -1845,7 +1847,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
             if (agentEvent) {
             const raw = agentEvent as Record<string, unknown>;
             const evType = String(raw.type || '');
-            if (evType === 'token' && raw.token) {
+            // Only process token if text was not already set (avoid double-append)
+            if (evType === 'token' && raw.token && !text) {
               const tok = String(raw.token);
               assistantAccum += tok;
               appendAssistantDelta(tok);

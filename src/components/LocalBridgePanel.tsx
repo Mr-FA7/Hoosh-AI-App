@@ -1,6 +1,5 @@
-import React from 'react';
-import { Download, Plug, RefreshCw, CheckCircle2, Circle, Monitor, Rocket } from 'lucide-react';
-import { useI18n } from '../i18n/LocaleContext';
+import React, { useState } from 'react';
+import { Download, Plug, RefreshCw, CheckCircle2, Circle } from 'lucide-react';
 import { isHostedWebApp } from '../runtimeEnv';
 import BridgeStatusLed from './BridgeStatusLed';
 
@@ -9,178 +8,118 @@ type BridgeStatus = {
   companion: boolean;
   connected: boolean;
   checking: boolean;
-  hintKey?: 'bridge.hintNoExtension' | 'bridge.hintNoCompanion' | 'bridge.hintRefreshPage';
+  hintKey?: string;
   refresh: () => Promise<void>;
 };
 
-type Props = {
-  compact?: boolean;
-  status: BridgeStatus;
-};
+type Props = { compact?: boolean; status: BridgeStatus };
 
 const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
-  const { t } = useI18n();
-  const { extension, companion, connected, checking, hintKey, refresh } = status;
+  const { connected, checking, refresh } = status;
+  const [os] = useState(() => navigator.userAgent.includes('Mac') ? 'mac' : 'win');
 
   if (!isHostedWebApp()) return null;
 
-  const panelBorder = checking
-    ? 'hsl(45 93% 47% / 0.45)'
-    : connected
-      ? 'hsl(142 71% 45% / 0.55)'
-      : 'hsl(0 72% 51% / 0.45)';
-  const panelBg = checking
-    ? 'hsl(45 93% 47% / 0.06)'
-    : connected
-      ? 'hsl(142 71% 45% / 0.07)'
-      : 'hsl(0 72% 51% / 0.05)';
+  const border = checking ? '#b45309' : connected ? '#16a34a' : '#dc2626';
+  const bg    = checking ? 'rgba(180,83,9,.06)' : connected ? 'rgba(22,163,74,.07)' : 'rgba(220,38,38,.05)';
 
-  const dot = (ok: boolean) =>
-    ok ? <CheckCircle2 size={14} color="hsl(142 71% 45%)" /> : <Circle size={14} color="hsl(0 72% 51%)" />;
-
-  const btn = (href: string, label: string, primary = false, download = true) => (
-    <a
-      href={href}
-      {...(download ? { download: true } : {})}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-        borderRadius: '8px',
-        background: primary ? 'hsl(var(--accent))' : 'transparent',
-        border: primary ? 'none' : '1px solid hsl(var(--border))',
-        color: primary ? '#fff' : 'hsl(var(--text-primary))',
-        fontSize: '12px', fontWeight: primary ? 600 : 500, textDecoration: 'none',
-      }}
-    >
-      {download ? <Download size={14} /> : <Rocket size={14} />} {label}
-    </a>
+  if (connected) return (
+    <div style={{ padding: '10px 14px', borderRadius: 10, border: `1px solid ${border}`, background: bg, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+      <CheckCircle2 size={15} color="#16a34a" />
+      <span style={{ color: '#16a34a', fontWeight: 600 }}>Hoosh Companion connected</span>
+      <button onClick={() => void refresh()} disabled={checking} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', borderRadius: 6, padding: '3px 8px', color: '#94a3b8', cursor: 'pointer', fontSize: 11 }}>
+        <RefreshCw size={11} style={{ verticalAlign: 'middle' }} />
+      </button>
+    </div>
   );
 
   return (
-    <div style={{
-      marginBottom: '18px',
-      padding: compact ? '12px 14px' : '14px 16px',
-      borderRadius: '12px',
-      border: `1px solid ${panelBorder}`,
-      background: panelBg,
-      transition: 'border-color 0.25s ease, background 0.25s ease',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: compact ? '8px' : '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
-          <Plug size={16} /> {t('bridge.title')}
+    <div style={{ padding: compact ? '12px 14px' : '16px', borderRadius: 12, border: `1px solid ${border}`, background: bg, marginBottom: 16 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
+          <Plug size={15} /> Local Companion
         </div>
-        <BridgeStatusLed connected={connected} extension={extension} checking={checking} />
+        <BridgeStatusLed connected={connected} extension={status.extension} checking={checking} />
       </div>
 
-      {!connected && !checking && (
-        <div style={{ marginBottom: compact ? '8px' : '12px' }}>
-          {btn('hoosh-bridge://open', t('bridge.launchDesktop'), true, false)}
-        </div>
-      )}
-
-      {hintKey && !connected && !checking && (
-        <p style={{
-          fontSize: '11px',
-          color: extension && !companion ? '#f97316' : 'hsl(0 72% 55%)',
-          fontWeight: 600,
-          marginBottom: compact ? '8px' : '12px',
-          lineHeight: 1.55,
-          padding: '8px 10px',
-          borderRadius: '8px',
-          background: extension && !companion ? 'rgba(249,115,22,0.08)' : 'rgba(239,68,68,0.08)',
-          border: `1px solid ${extension && !companion ? 'rgba(249,115,22,0.25)' : 'rgba(239,68,68,0.25)'}`,
-        }}>
-          {t(hintKey)}
-        </p>
-      )}
-
-      {compact ? (
-        <>
-          <p style={{ fontSize: '11px', color: 'hsl(142 71% 45%)', fontWeight: 600, marginBottom: '8px', lineHeight: 1.5 }}>
-            {t('bridge.connected')}
-          </p>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={checking}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px',
-              borderRadius: '8px', border: '1px solid hsl(var(--border))', background: 'transparent',
-              color: 'hsl(var(--text-primary))', fontSize: '11px', cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={12} /> {checking ? t('bridge.checking') : t('bridge.recheck')}
-          </button>
-        </>
+      {checking ? (
+        <p style={{ fontSize: 12, color: '#94a3b8' }}>Checking for local companion…</p>
       ) : (
         <>
-          {/* Status indicators */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(extension)} Chrome extension</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(companion)} Local companion (port 3001)</div>
-          </div>
-
-          {/* ONE-CLICK installer */}
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '6px' }}>
-            <Monitor size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            Step 1 — install companion + extension (Windows)
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-            {btn('/HooshBridgeSetup.exe', '⬇ Windows Installer (.exe)', true)}
-            {btn('/hoosh-bridge-setup-mac.zip', '⬇ macOS (.zip)')}
-          </div>
-          <p style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', marginBottom: '14px', lineHeight: 1.55 }}>
-            Run the installer → it sets up companion + extension automatically → restart Chrome → refresh this page.
+          <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14, lineHeight: 1.6 }}>
+            برای دسترسی به فایل‌ها، ترمینال و AI لوکال، یک‌بار Companion رو نصب کنید — بدون نیاز به افزونه.
           </p>
 
-          {/* MANUAL — Chrome */}
-          <details style={{ marginBottom: '10px' }}>
-            <summary style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer', userSelect: 'none' }}>
-              🌐 Chrome — load extension manually
-            </summary>
-            <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid hsl(var(--border))' }}>
-              {btn('/hoosh-local-bridge.zip', '⬇ Chrome extension (.zip)')}
-              <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '16px', margin: '8px 0 0', lineHeight: 1.7 }}>
-                <li>Unzip <code>hoosh-local-bridge.zip</code></li>
-                <li>Open Chrome → go to <code>chrome://extensions</code></li>
-                <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
-                <li>Click <strong>Load unpacked</strong> → select the unzipped folder</li>
-                <li>Refresh this page</li>
-              </ol>
-            </div>
-          </details>
-
-          {/* MANUAL — Firefox */}
-          <details style={{ marginBottom: '14px' }}>
-            <summary style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer', userSelect: 'none' }}>
-              🦊 Firefox — load extension manually
-            </summary>
-            <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid hsl(var(--border))' }}>
-              {btn('/hoosh-local-bridge-firefox.zip', '⬇ Firefox extension (.zip)')}
-              <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '16px', margin: '8px 0 0', lineHeight: 1.7 }}>
-                <li>Unzip <code>hoosh-local-bridge-firefox.zip</code></li>
-                <li>Open Firefox → go to <code>about:debugging#/runtime/this-firefox</code></li>
-                <li>Click <strong>Load Temporary Add-on…</strong></li>
-                <li>Select <code>manifest.json</code> inside the unzipped folder</li>
-                <li>Refresh this page</li>
-              </ol>
-              <p style={{ fontSize: '10px', color: 'hsl(var(--text-secondary))', marginTop: '6px' }}>
-                Note: Temporary add-ons are removed when Firefox restarts. For permanent install, use Firefox Developer Edition.
-              </p>
-            </div>
-          </details>
-
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={checking}
+          {/* Big download button */}
+          <a
+            href={os === 'mac' ? '/hoosh-bridge-setup-mac.zip' : '/HooshBridgeSetup.exe'}
+            download
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-              borderRadius: '8px', border: '1px solid hsl(var(--border))', background: 'transparent',
-              color: 'hsl(var(--text-primary))', fontSize: '12px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '11px 18px', borderRadius: 10, background: '#2563eb', color: '#fff',
+              fontWeight: 700, fontSize: 13, textDecoration: 'none', marginBottom: 10,
             }}
           >
-            <RefreshCw size={14} /> {checking ? t('bridge.checking') : t('bridge.recheck')}
+            <Download size={15} />
+            {os === 'mac' ? 'دانلود برای macOS' : 'دانلود Hoosh Companion (Windows)'}
+          </a>
+
+          <ol style={{ fontSize: 11, color: '#94a3b8', paddingLeft: 18, margin: '0 0 14px', lineHeight: 1.8 }}>
+            {os === 'win' ? <>
+              <li>فایل <strong>HooshBridgeSetup.exe</strong> را اجرا کنید</li>
+              <li>نصب کنید — همه چیز خودکار راه‌اندازی می‌شود</li>
+              <li>این صفحه را <strong>Refresh</strong> کنید</li>
+            </> : <>
+              <li>zip را باز کرده، <strong>HooshCompanion.command</strong> را اجرا کنید</li>
+              <li>پنجره ترمینال را باز نگه دارید</li>
+              <li>این صفحه را <strong>Refresh</strong> کنید</li>
+            </>}
+          </ol>
+
+          {/* OS switch */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {(['win', 'mac'] as const).map(o => (
+              <button key={o} style={{
+                fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                background: os === o ? '#1e40af' : 'transparent',
+                border: `1px solid ${os === o ? '#2563eb' : '#334155'}`,
+                color: os === o ? '#fff' : '#94a3b8',
+              }}
+                onClick={() => {/* readonly for now */}}>
+                {o === 'win' ? '🪟 Windows' : '🍎 Mac'}
+              </button>
+            ))}
+          </div>
+
+          {/* Recheck */}
+          <button
+            onClick={() => void refresh()} disabled={checking}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}
+          >
+            <RefreshCw size={13} /> {checking ? 'در حال بررسی…' : 'بررسی مجدد اتصال'}
           </button>
+
+          {/* Manual / Firefox details */}
+          <details style={{ marginTop: 12 }}>
+            <summary style={{ fontSize: 11, color: '#64748b', cursor: 'pointer' }}>نصب دستی / Firefox</summary>
+            <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8', lineHeight: 1.7 }}>
+              <p style={{ marginBottom: 6 }}><strong style={{ color: '#cbd5e1' }}>Chrome:</strong></p>
+              <ol style={{ paddingLeft: 16, margin: '0 0 10px' }}>
+                <li><a href="/hoosh-local-bridge.zip" download style={{ color: '#60a5fa' }}>دانلود hoosh-local-bridge.zip</a> و Extract</li>
+                <li>Chrome ← <code>chrome://extensions</code></li>
+                <li>Developer mode را فعال کنید</li>
+                <li>Load unpacked ← پوشه Extract شده</li>
+              </ol>
+              <p style={{ marginBottom: 6 }}><strong style={{ color: '#cbd5e1' }}>Firefox:</strong></p>
+              <ol style={{ paddingLeft: 16, margin: 0 }}>
+                <li><a href="/hoosh-local-bridge-firefox.zip" download style={{ color: '#60a5fa' }}>دانلود hoosh-local-bridge-firefox.zip</a> و Extract</li>
+                <li>Firefox ← <code>about:debugging#/runtime/this-firefox</code></li>
+                <li>Load Temporary Add-on ← manifest.json</li>
+              </ol>
+            </div>
+          </details>
         </>
       )}
     </div>

@@ -212,7 +212,18 @@ async function main() {
   console.log('[FA7 OS] Ollama:', ollamaHttp(), '| mode:', ollamaInfo.mode);
 
   const app = express();
-  app.use(cors());
+  // Allow aihoosh.com (HTTPS public site) to call localhost directly.
+  // Chrome Private Network Access (PNA) requires Access-Control-Allow-Private-Network header.
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers',
+      req.headers['access-control-request-headers'] || 'Content-Type,Authorization,X-Requested-With');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
   app.use(bodyParser.json({ limit: '5mb' }));
 
   mountStudioRoutes(app, { getActiveProjectRoot: () => currentProjectRoot });
@@ -4600,6 +4611,9 @@ app.get('/api/ai/system-stats', (req, res) => {
   });
 
   await loadFa7Plugins();
+
+  const { mountHooshExtensionRoutes } = require('./lib/hooshExtensionHost');
+  mountHooshExtensionRoutes(app, PORT);
 
   // Packaged Electron loads the UI from companion so /assets/* resolve correctly (file:// breaks absolute paths).
   if (process.env.FA7_ELECTRON_MODE) {

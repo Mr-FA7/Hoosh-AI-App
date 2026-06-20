@@ -1,13 +1,10 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { API_BASE } from '../apiBase';
 import { isHostedWebApp } from '../runtimeEnv';
-import {
-  bridgeDelete,
-  bridgeGet,
-  bridgePost,
-  probeLocalBridge,
-  shouldUseLocalBridge,
-} from './localBridge';
+import { bridgeDelete, bridgeGet, bridgePost, probeLocalBridge, shouldUseLocalBridge } from './localBridge';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from './companionProbe';
+
+const DIRECT_API = () => `${getCompanionDirectUrl()}/api`;
 
 function normalizeApiPath(path: string): string {
   if (path.startsWith('http')) {
@@ -29,30 +26,50 @@ export async function ensureBridgeReady(): Promise<boolean> {
 
 export async function companionGet<T = unknown>(path: string, config?: AxiosRequestConfig) {
   const apiPath = normalizeApiPath(path);
+  const rel = apiPath.replace(/^\/api/, '');
+
+  // Direct localhost (no extension needed)
+  if (isHostedWebApp() && isDirectCompanionReachable()) {
+    return axios.get<T>(`${DIRECT_API()}${rel}`, config);
+  }
+
+  // Extension bridge
   if (isHostedWebApp() && shouldUseLocalBridge()) {
     const q = config?.params
       ? `?${new URLSearchParams(Object.entries(config.params as Record<string, string>).map(([k, v]) => [k, String(v)]))}`
       : '';
     return toAxiosLike<T>(await bridgeGet(`${apiPath}${q}`));
   }
-  const rel = apiPath.replace(/^\/api/, '');
+
   return axios.get<T>(`${API_BASE}${rel}`, config);
 }
 
 export async function companionPost<T = unknown>(path: string, body?: unknown, config?: AxiosRequestConfig) {
   const apiPath = normalizeApiPath(path);
+  const rel = apiPath.replace(/^\/api/, '');
+
+  if (isHostedWebApp() && isDirectCompanionReachable()) {
+    return axios.post<T>(`${DIRECT_API()}${rel}`, body, config);
+  }
+
   if (isHostedWebApp() && shouldUseLocalBridge()) {
     return toAxiosLike<T>(await bridgePost(apiPath, body));
   }
-  const rel = apiPath.replace(/^\/api/, '');
+
   return axios.post<T>(`${API_BASE}${rel}`, body, config);
 }
 
 export async function companionDelete<T = unknown>(path: string, config?: AxiosRequestConfig) {
   const apiPath = normalizeApiPath(path);
+  const rel = apiPath.replace(/^\/api/, '');
+
+  if (isHostedWebApp() && isDirectCompanionReachable()) {
+    return axios.delete<T>(`${DIRECT_API()}${rel}`, config);
+  }
+
   if (isHostedWebApp() && shouldUseLocalBridge()) {
     return toAxiosLike<T>(await bridgeDelete(apiPath, config?.data));
   }
-  const rel = apiPath.replace(/^\/api/, '');
+
   return axios.delete<T>(`${API_BASE}${rel}`, config);
 }

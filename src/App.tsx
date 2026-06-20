@@ -23,6 +23,7 @@ import ProblemsPanel from './components/ProblemsPanel';
 import axios from 'axios';
 import { API_BASE } from './apiBase';
 import { fetchProjectFiles, fetchFileContent, saveFileContent, switchProject } from './lib/workspaceApi';
+import { companionGet, companionPost } from './lib/companionHttp';
 import { getRuntimeEnv } from './lib/companionProbe';
 import { isWebProjectRoot } from './lib/webWorkspace';
 import type { WorkspaceTab } from './types/workspaceTab';
@@ -79,7 +80,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const refreshProblems = async () => {
       try {
-        const r = await axios.get(`${API_BASE}/v3/context/problems/list`);
+        const r = await companionGet<{ markers?: { severity: number }[] }>(`${API_BASE}/v3/context/problems/list`);
         const markers = r.data?.markers || [];
         setProblemCounts({
           errors: markers.filter((m: { severity: number }) => m.severity === 8).length,
@@ -136,7 +137,7 @@ const App: React.FC = () => {
     (window as any).setProposals = setProposals;
     void getRuntimeEnv().then((env) => {
       if (!env.usesCompanionApi) return;
-      axios.get(`${API_BASE}/v3/project/path`)
+      companionGet<{ path?: string }>(`${API_BASE}/v3/project/path`)
         .then(res => {
           if (res.data?.path) {
             setProjectRoot(res.data.path);
@@ -358,7 +359,7 @@ const App: React.FC = () => {
       if (projectRoot && !isWebProjectRoot(projectRoot)) {
         const env = await getRuntimeEnv();
         if (env.usesCompanionApi) {
-          await axios.post(`${API_BASE}/v3/project/close`);
+          await companionPost(`${API_BASE}/v3/project/close`);
         }
       }
       setProjectRoot(null);

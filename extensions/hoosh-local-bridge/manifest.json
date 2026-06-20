@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Hoosh Local Bridge",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Connects aihoosh.com to Hoosh companion on your computer (files, terminal, Ollama, LM Studio).",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8F1utVw3LEzC1h0orsu+73Ta48n3MJGwIubBQRr56AcJla9H1Qw10QszsICghpy2Lgjs1rcPbLkpLzNctIZDc9eNu5qqEpQ2ub+CQMZDU2c9LK9F1Yy05oAyo10hXut4vRccvraOda40Z6Z8N+nQN4JxbCPYo5Lc+9SwpNlxOx0SZpX0HhyyC18wq2pVceiiRHoPMZNAobZ9rrzKDmWJ2FDhrO4eBVbsz/BvFih8mLCqQ2P05foYZ1uxEgQon5DzD65BD7Eo3jHGylJS3kFKdMuh2h6XzJcuMgHFEX+vAmcT7l6JZXQxOtrhb5d4Z/V16YPsCLAukmcY5BYde82yBwIDAQAB",
-  "permissions": ["storage"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2nEZs3TR8TSI/ztTERAM1NkRGvldzc4Fi7dDC23V7IQ5SdPrbMAkBcwCWDZle7gc8ASlWgXWrHN8nfuhlcKmr+pGpH9IA4v0ZkX5tYv/iaxQxOyZ+QVk0Zg0DVQhvsBp96zoOaZ3ziKy+NdjBVy1u1GIMRCuY8kcxnLJq1ALjsGco0GKVZ4Kwjf6wEFWY0Lcna96Dm7D1Br2Jl9Chj0cC2jQdoUTabwHFHVdlM16BM0UkDoN0coonC1vVZDHcJVrcKZP/2BdEewiKeDkvhDWdsvROqD83UkM9Z52W3Kn2oBU1doXyxoF8or4zNly4KtFDBlmESq8p0+52CsflyQhQQIDAQAB",
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://aihoosh.com/*",
     "https://www.aihoosh.com/*",
@@ -14,6 +14,14 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Hoosh Local Bridge",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   },
   "content_scripts": [
     {
@@ -35,8 +43,5 @@
         "https://*.aihoosh.com/*"
       ]
     }
-  ],
-  "action": {
-    "default_title": "Hoosh Local Bridge"
-  }
+  ]
 }

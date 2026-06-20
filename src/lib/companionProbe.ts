@@ -54,6 +54,8 @@ export async function getRuntimeEnv() {
       return {
         ...sync(true),
         surface: 'bridge' as const,
+        usesCompanionApi: true,
+        usesWebWorkspace: false,
         labelKey: 'runtime.modeBridge' as const,
         browseHintKey: 'runtime.browseCompanion' as const,
       };

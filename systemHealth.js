@@ -341,28 +341,50 @@ class SystemHealth {
             'Git': 'git'
         };
 
+        const isWindows = process.platform === 'win32';
+
+        // Windows-specific version commands (where.exe is reliable)
+        const windowsCmds = {
+            'Node.js':    'node -v',
+            'Python':     'python --version',
+            'Git':        'git --version',
+            'Go':         'go version',
+            'Rust':       'rustc --version',
+            'Ruby':       'ruby -v',
+            'PHP':        'php -v',
+            'Java (JDK)': 'java -version',
+        };
+
         const tools = this.getAllTools();
         const results = await Promise.all(tools.map(async (tool) => {
             let status = 'missing';
             let version = null;
 
-            const brewPkg = brewBacked[tool.name];
-            if (brewPkg) {
-                // For brew-managed tools, status should follow brew package presence.
-                // This keeps UI consistent after "Remove" even if another global binary exists.
-                const hasBrew = await this.runCommand('command -v brew');
-                if (hasBrew.ok && hasBrew.stdout.trim()) {
-                    const probe = await this.runCommand(`brew list --versions ${brewPkg}`);
-                    if (probe.ok && probe.stdout.trim()) {
-                        status = 'installed';
-                        version = probe.stdout.trim();
-                    }
-                }
-            } else {
-                const probe = await this.runCommand(tool.cmd);
+            if (isWindows) {
+                // On Windows: run the tool command directly (no brew)
+                const winCmd = windowsCmds[tool.name] || tool.cmd;
+                const probe = await this.runCommand(winCmd);
                 status = probe.ok ? 'installed' : 'missing';
                 const versionText = `${probe.stdout || ''}\n${probe.stderr || ''}`.trim();
                 version = probe.ok && versionText ? versionText.split('\n')[0] : null;
+            } else {
+                const brewPkg = brewBacked[tool.name];
+                if (brewPkg) {
+                    // macOS: check brew first
+                    const hasBrew = await this.runCommand('command -v brew');
+                    if (hasBrew.ok && hasBrew.stdout.trim()) {
+                        const probe = await this.runCommand(`brew list --versions ${brewPkg}`);
+                        if (probe.ok && probe.stdout.trim()) {
+                            status = 'installed';
+                            version = probe.stdout.trim();
+                        }
+                    }
+                } else {
+                    const probe = await this.runCommand(tool.cmd);
+                    status = probe.ok ? 'installed' : 'missing';
+                    const versionText = `${probe.stdout || ''}\n${probe.stderr || ''}`.trim();
+                    version = probe.ok && versionText ? versionText.split('\n')[0] : null;
+                }
             }
 
             return {

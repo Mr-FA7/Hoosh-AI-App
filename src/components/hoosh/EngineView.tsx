@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Database, Loader2 } from 'lucide-react';
 import { API_BASE } from '../../apiBase';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from '../../lib/companionProbe';
+const _rHEV = (p: string) => isDirectCompanionReachable() ? `${getCompanionDirectUrl()}${p}` : `${API_BASE}${p.replace(/^\/api/,'')}`;
 
 /**
  * Side panel: **Tool vault only** (`tool_vault.json` — hoosh:vault:&lt;key&gt;).
@@ -19,7 +21,7 @@ const HooshEngineView: React.FC<{ className?: string }> = ({ className = '' }) =
     setVaultLoading(true);
     setVaultErr(null);
     try {
-      const r = await fetch(`${API_BASE}/v3/vault`);
+      const r = await fetch(_rHEV(`/api/v3/vault`));
       if (!r.ok) throw new Error(await r.text());
       const j = (await r.json()) as { ok?: boolean; entries?: Record<string, string> };
       const entries = j.entries && typeof j.entries === 'object' ? j.entries : {};
@@ -42,7 +44,7 @@ const HooshEngineView: React.FC<{ className?: string }> = ({ className = '' }) =
   useEffect(() => {
     void (async () => {
       try {
-        const r = await fetch(`${API_BASE}/v3/vault`);
+        const r = await fetch(_rHEV(`/api/v3/vault`));
         if (!r.ok) return;
         const j = (await r.json()) as { entries?: Record<string, string> };
         const entries = j.entries && typeof j.entries === 'object' ? j.entries : {};
@@ -58,14 +60,14 @@ const HooshEngineView: React.FC<{ className?: string }> = ({ className = '' }) =
     setSaveBusy(true);
     setVaultErr(null);
     try {
-      const rGet = await fetch(`${API_BASE}/v3/vault`);
+      const rGet = await fetch(_rHEV(`/api/v3/vault`));
       const jGet = await rGet.json().catch(() => ({}));
       const entries =
         jGet && typeof jGet === 'object' && jGet.entries && typeof jGet.entries === 'object'
           ? { ...jGet.entries }
           : {};
       entries[selectedKey] = draft;
-      const r = await fetch(`${API_BASE}/v3/vault`, {
+      const r = await fetch(_rHEV(`/api/v3/vault`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entries })
@@ -108,7 +110,7 @@ const HooshEngineView: React.FC<{ className?: string }> = ({ className = '' }) =
                     onClick={() => {
                       setSelectedKey(k);
                       void (async () => {
-                        const r = await fetch(`${API_BASE}/v3/vault`);
+                        const r = await fetch(_rHEV(`/api/v3/vault`));
                         const j = await r.json().catch(() => ({}));
                         const ent = j?.entries?.[k];
                         setDraft(typeof ent === 'string' ? ent : '');

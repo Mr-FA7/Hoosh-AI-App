@@ -3,6 +3,8 @@ import { Settings, Download, Cpu, Package, CheckCircle, Shield, Trash2, RefreshC
 import './EngineView.css';
 import axios from 'axios';
 import { API_BASE } from '../apiBase';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from '../lib/companionProbe';
+const _resolveEV = (p: string) => isDirectCompanionReachable() ? `${getCompanionDirectUrl()}${p}` : `${API_BASE}${p.replace(/^\/api/,'')}`;
 import { useI18n } from '../i18n/LocaleContext';
 
 type Preset = { name: string; label: string };
@@ -472,7 +474,7 @@ const EngineView: React.FC = () => {
     setLoading('pull');
     setPullLog('');
     try {
-      const res = await fetch(`${API_BASE}/ollama/pull-stream`, {
+      const res = await fetch(_resolveEV('/api/ollama/pull-stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: n }),

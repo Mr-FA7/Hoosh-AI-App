@@ -3811,8 +3811,27 @@ app.get('/api/ai/system-stats', (req, res) => {
         });
       }
 
+      // Last resort: try any locally installed Ollama model
       if (!response) {
-         writeJsonLine(res, { message: { content: '' }, agent_event: { type: 'error', message: `Model Connection Error. All selected models failed. (Last: ${attemptError})` } });
+        try {
+          const ollamaTags = await axios.get(`${ollamaHttp()}/api/tags`, { timeout: 3000 });
+          const localModels = (ollamaTags.data?.models || []).map(m => m.name).filter(Boolean);
+          for (const localM of localModels) {
+            if (localM === selectedModel) continue;
+            try {
+              console.log(`[FA7 OS] Last-resort fallback to local Ollama model: ${localM}`);
+              response = await tryChat(localM);
+              selectedModel = localM;
+              attemptError = null;
+              writeJsonLine(res, { message: { content: '' }, agent_event: { type: 'status', message: `Auto-selected local model: ${localM}` } });
+              break;
+            } catch {}
+          }
+        } catch {}
+      }
+
+      if (!response) {
+         writeJsonLine(res, { message: { content: '' }, agent_event: { type: 'error', message: `Model Connection Error. All selected models failed. (Last: ${attemptError})\n\nمدل "${selectedModel}" نصب نیست. در Engine View یه مدل محلی نصب کنید.` } });
          return res.end();
       }
 

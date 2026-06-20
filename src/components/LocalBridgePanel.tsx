@@ -113,31 +113,41 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
         </>
       ) : (
         <>
-          <p style={{ fontSize: '12px', color: 'hsl(var(--text-secondary))', marginBottom: '12px', lineHeight: 1.5 }}>
-            {t('bridge.subtitle')}
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', marginBottom: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(extension)} {t('bridge.stepExtension')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(companion)} {t('bridge.stepCompanion')}</div>
+          {/* Status indicators */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(extension)} Chrome extension</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{dot(companion)} Local companion (port 3001)</div>
           </div>
 
-          <p style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>
+          {/* ONE-CLICK installer */}
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '6px' }}>
             <Monitor size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            {t('bridge.oneClickTitle')}
+            Step 1 — install companion + extension (Windows)
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            {btn('/HooshBridgeSetup.exe', t('bridge.downloadWinExe'), true)}
-            {btn('/hoosh-bridge-setup-win.zip', t('bridge.downloadWin'))}
-            {btn('/hoosh-bridge-setup-mac.zip', t('bridge.downloadMac'))}
-            {btn('/hoosh-local-bridge.zip', t('bridge.downloadExtensionOnly'))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            {btn('/HooshBridgeSetup.exe', '⬇ Windows Installer (.exe)', true)}
+            {btn('/hoosh-bridge-setup-mac.zip', '⬇ macOS (.zip)')}
           </div>
+          <p style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', marginBottom: '14px', lineHeight: 1.55 }}>
+            Run the installer → it sets up companion + extension automatically → restart Chrome → refresh this page.
+          </p>
 
-          <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '18px', margin: '0 0 12px', lineHeight: 1.6 }}>
-            <li>{t('bridge.step1Installer')}</li>
-            <li>{t('bridge.hintUseShortcut')}</li>
-            <li>{t('bridge.step3Reload')}</li>
-          </ol>
+          {/* MANUAL extension load */}
+          <details style={{ marginBottom: '14px' }}>
+            <summary style={{ fontSize: '11px', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer', userSelect: 'none' }}>
+              Extension only / manual install
+            </summary>
+            <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid hsl(var(--border))' }}>
+              {btn('/hoosh-local-bridge.zip', '⬇ Download extension zip')}
+              <ol style={{ fontSize: '11px', color: 'hsl(var(--text-secondary))', paddingLeft: '16px', margin: '8px 0 0', lineHeight: 1.7 }}>
+                <li>Unzip <code>hoosh-local-bridge.zip</code></li>
+                <li>Open Chrome → type <code>chrome://extensions</code></li>
+                <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
+                <li>Click <strong>Load unpacked</strong> → select the unzipped folder</li>
+                <li>Refresh this page</li>
+              </ol>
+            </div>
+          </details>
 
           <button
             type="button"

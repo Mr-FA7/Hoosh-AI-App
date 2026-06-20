@@ -2,7 +2,14 @@ import { create } from 'zustand';
 import type { AgentKernelEvent, CognitiveLogEntry, HooshAgentRole } from './types';
 import { extractToolJsonAfterPrefix, startMissionStream, consumeNdjsonStream } from './agentService';
 import { API_BASE } from '../apiBase';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from '../lib/companionProbe';
 import axios from 'axios';
+
+function resolveApiUrl(path: string): string {
+  if (isDirectCompanionReachable()) return `${getCompanionDirectUrl()}${path}`;
+  const rel = path.replace(/^\/api/, '');
+  return `${API_BASE}${rel}`;
+}
 
 const TAG_RE = /\[(reading|thinking|planning|searching|executing|terminal|writing|rewriting|ask|done|error)\]/gi;
 
@@ -325,7 +332,7 @@ export const useHooshStore = create<HooshState>((set, get) => ({
     const ac = new AbortController();
     set({ abortController: ac });
     try {
-      const res = await fetch(`${API_BASE}/v3/mission/continue`, {
+      const res = await fetch(resolveApiUrl('/api/v3/mission/continue'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reply: userInput }),

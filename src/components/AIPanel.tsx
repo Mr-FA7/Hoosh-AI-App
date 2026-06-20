@@ -28,7 +28,10 @@ import ApprovalModal from './hoosh/ApprovalModal';
 import CheckpointPanel from './hoosh/CheckpointPanel';
 import { useHooshStore } from '../hoosh/useHooshStore';
 import { API_BASE } from '../apiBase';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from '../lib/companionProbe';
 import { runChatStream } from '../hoosh/agentService';
+const resolveUrl = (path: string) => isDirectCompanionReachable() ? `${getCompanionDirectUrl()}${path}` : `${API_BASE}${path.replace(/^\/api/,'')}`;
+
 import { useI18n } from '../i18n/LocaleContext';
 import { mermaidToPlanMarkdown } from '../flowchart/mermaidPlan';
 import {
@@ -1948,7 +1951,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
     try {
       const backendSessionId = await ensureBackendSessionId(activeSessionId, deriveSessionTitle(messages));
-      const res = await fetch(`${API_BASE}/api/v3/mission/implement`, {
+      const res = await fetch(resolveUrl('/api/v3/mission/implement'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: backendSessionId }),

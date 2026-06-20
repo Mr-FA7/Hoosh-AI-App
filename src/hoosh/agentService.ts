@@ -1,5 +1,15 @@
 import type { AgentKernelEvent, ChatStreamEnvelope, LegacyStreamLine } from './types';
 import { API_BASE } from '../apiBase';
+import { isDirectCompanionReachable, getCompanionDirectUrl } from '../lib/companionProbe';
+
+/** Returns the base API URL — uses companion directly when reachable (bypasses aihoosh.com) */
+function resolveApiUrl(path: string): string {
+  if (isDirectCompanionReachable()) {
+    return `${getCompanionDirectUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+  const rel = path.startsWith('/api') ? path.slice(4) : path.startsWith('api') ? path.slice(3) : path;
+  return `${API_BASE}${rel}`;
+}
 
 const decoder = new TextDecoder();
 
@@ -181,7 +191,7 @@ export async function startMissionStream(
     onStreamId?: (id: string) => void;
   }
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/v3/mission`, {
+  const res = await fetch(resolveApiUrl('/api/v3/mission'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ goal, projectName: opts.projectName }),
@@ -233,7 +243,7 @@ export async function runChatStream(
     onStreamId?: (id: string) => void;
   }
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/ai/chat`, {
+  const res = await fetch(resolveApiUrl('/api/ai/chat'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...body, stream: true }),

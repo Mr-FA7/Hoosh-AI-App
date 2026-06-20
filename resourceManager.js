@@ -282,8 +282,36 @@ class ResourceManager {
     const totalRam = os.totalmem();
     const freeRam = os.freemem();
     const ramUsagePercent = ((totalRam - freeRam) / totalRam) * 100;
-    const totalRamMB = Math.floor(totalRam / (1024 * 1024));
+    const totalRamMBRaw = Math.floor(totalRam / (1024 * 1024));
     const freeRamMB = Math.floor(freeRam / (1024 * 1024));
+
+    // Round to nearest standard RAM size (8, 12, 16, 24, 32, 48, 64, 96, 128 GB)
+    // OS reports slightly less than installed due to BIOS/hardware reservation
+    const standardSizes = [2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256];
+    const rawGB = totalRamMBRaw / 1024;
+    const totalRamMB = standardSizes.reduce((prev, cur) =>
+      Math.abs(cur - rawGB) < Math.abs(prev - rawGB) ? cur : prev
+    ) * 1024;
+
+    // Detect RAM speed (MT/s) via PowerShell on Windows
+    let ramSpeedMTs = 0;
+    if (process.platform === 'win32') {
+      // Win32_PhysicalMemory.Speed returns MT/s directly (DDR4=3200, DDR5=7200 etc.)
+      const psOut = run('powershell -NoProfile -Command "Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1 Speed,ConfiguredClockSpeed | ConvertTo-Csv -NoTypeInformation"');
+      if (psOut) {
+        const lines = psOut.split(/\r?\n/).filter(l => l.trim() && !l.startsWith('"Speed"'));
+        if (lines.length) {
+          const parts = lines[0].replace(/"/g, '').split(',');
+          const speed = parseInt(parts[0] || '0', 10);
+          const configured = parseInt(parts[1] || '0', 10);
+          ramSpeedMTs = Math.max(speed, configured); // use whichever is higher
+        }
+      }
+    } else if (process.platform === 'darwin') {
+      const out = run('system_profiler SPMemoryDataType 2>/dev/null | grep -i "speed"');
+      const m = out?.match(/(\d+)\s*MHz/i);
+      if (m) ramSpeedMTs = parseInt(m[1]) * 2;
+    }
 
     // CPU
     const cpu = detectCpu();
@@ -319,6 +347,7 @@ class ResourceManager {
         ram: {
           total: totalRamMB,
           free: freeRamMB,
+          speed_mts: ramSpeedMTs,
           memory_pressure: ramUsagePercent > 75 ? 'high' : (ramUsagePercent > 50 ? 'medium' : 'low'),
           swap_usage: 0
         },

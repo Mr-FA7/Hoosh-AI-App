@@ -322,7 +322,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
                 const mb = hw?.ram?.total;
                 if (!mb) return t('settings.unknown');
                 const gb = mb / 1024;
-                return gb >= 1 ? `${gb.toFixed(gb >= 10 ? 0 : 1)} GB` : `${mb} MB`;
+                const gbStr = gb >= 1 ? `${Math.round(gb)} GB` : `${mb} MB`;
+                const speed = (hw?.ram as any)?.speed_mts;
+                return speed ? `${gbStr} · ${speed.toLocaleString()} MT/s` : gbStr;
               })()}
             />
             <InfoRow

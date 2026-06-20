@@ -303,25 +303,33 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
             <InfoRow
               label={t('settings.gpu')}
               value={(() => {
-                const g = hw?.gpu;
-                const bits: string[] = [];
-                if (g?.vendor === 'apple') {
-                  bits.push('Apple GPU (Metal)');
-                } else if (g?.vendor && g.vendor !== 'none') {
-                  bits.push(String(g.vendor));
-                } else {
-                  bits.push('GPU');
+                const g = hw?.gpu as any;
+                if (!g || g.vendor === 'none') return t('settings.unknown');
+                const name = g.name || (g.vendor === 'apple' ? 'Apple GPU' : String(g.vendor).toUpperCase() + ' GPU');
+                const bits = [name];
+                if (typeof g.total_vram === 'number' && g.total_vram > 0) {
+                  bits.push(g.total_vram >= 1024
+                    ? `${(g.total_vram / 1024).toFixed(0)} GB VRAM`
+                    : `${g.total_vram} MB VRAM`);
                 }
-                if (g && typeof g.cores === 'number' && g.cores > 0) {
-                  bits.push(`${g.cores} cores`);
-                }
-                bits.push(g?.vendor === 'apple' ? 'Unified memory' : t('settings.dedicatedVram'));
+                if (g.compute_api && g.compute_api !== 'none') bits.push(g.compute_api.toUpperCase());
                 return bits.join(' · ');
               })()}
             />
-            <InfoRow label={t('settings.ram')} value={hw?.ram?.total || t('settings.unknown')} />
-            <InfoRow label={t('settings.motherboard')} value={hw?.ram?.is_unified ? t('settings.unifiedRam') : t('settings.standardRam')} />
-            <InfoRow label={t('settings.storage')} value={`${hw?.storage?.total || t('settings.unknown')} (${hw?.storage?.used || t('settings.unknown')} used) (${hw?.storage?.free || t('settings.unknown')} free)`} />
+            <InfoRow
+              label={t('settings.ram')}
+              value={(() => {
+                const mb = hw?.ram?.total;
+                if (!mb) return t('settings.unknown');
+                const gb = mb / 1024;
+                return gb >= 1 ? `${gb.toFixed(gb >= 10 ? 0 : 1)} GB` : `${mb} MB`;
+              })()}
+            />
+            <InfoRow
+              label={t('settings.motherboard')}
+              value={(hw as any)?.motherboard || (hw?.ram as any)?.is_unified ? 'Apple Silicon' : t('settings.unknown')}
+            />
+            <InfoRow label={t('settings.storage')} value={`${hw?.storage?.total || t('settings.unknown')} (${hw?.storage?.used || '0'} used) (${hw?.storage?.free || '0'} free)`} />
           </div>
         ) : (
           <div style={{ color: 'hsl(var(--destructive))' }}>{t('settings.systemError')}</div>

@@ -5,6 +5,7 @@ import {
   waitForBridgeExtension,
 } from '../lib/localBridge';
 import { getRuntimeEnvSync, isHostedWebApp } from '../runtimeEnv';
+import { installCompanionInterceptor } from '../apiBase';
 
 const COMPANION_DIRECT_URL = 'http://127.0.0.1:3001';
 
@@ -54,6 +55,7 @@ export async function probeCompanionReachable(force = false): Promise<boolean> {
       const direct = await probeDirectLocalhost();
       if (direct) {
         directCompanionReachable = true;
+        installCompanionInterceptor(); // redirect ALL axios /api/... calls to localhost
         return true;
       }
       directCompanionReachable = false;

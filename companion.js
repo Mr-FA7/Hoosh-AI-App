@@ -3385,10 +3385,13 @@ app.get('/api/ai/system-stats', (req, res) => {
     return /[\u0600-\u06FF]/.test(String(text || '')) ? 'fa' : 'en';
   }
 
-  function buildFriendlyChatSystemPrompt(_lang) {
+  function buildFriendlyChatSystemPrompt(lang) {
+    const langInstruction = lang === 'fa'
+      ? '**زبان:** همیشه به فارسی جواب بده. اگر کاربر صراحتاً زبان دیگری خواست، تغییر بده.'
+      : '**Language:** Always reply in the **same language as the user\'s latest message**. Only switch if they **explicitly** ask for another language.';
     return [
-      'You are a conversational assistant for FA7.',
-      '**Language:** Always reply in the **same language as the user\'s latest message**. Only switch if they **explicitly** ask for another language (e.g. "answer in English"); then keep that until they ask otherwise. Stay consistent with this conversation\'s thread; a **new chat** has no prior language preference.',
+      lang === 'fa' ? 'تو یه دستیار هوشمند برای FA7 هستی. ساده، مختصر و مفید جواب بده.' : 'You are a conversational assistant for FA7.',
+      langInstruction,
       'For greetings, suggestions, and general chat, answer naturally and helpfully.',
       'For questions **not** about the open project (general knowledge, culture, explanations, etc.), answer **fully** like any assistant — do **not** refuse for being off-topic.',
       'Do not claim you can only help with FA7 unless the request is clearly unsafe/unrelated.',

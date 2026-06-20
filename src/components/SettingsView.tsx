@@ -327,7 +327,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
             />
             <InfoRow
               label={t('settings.motherboard')}
-              value={(hw as any)?.motherboard || (hw?.ram as any)?.is_unified ? 'Apple Silicon' : t('settings.unknown')}
+              value={(() => {
+                const board = (hw as any)?.motherboard;
+                if (board && board !== 'Standard') return board;
+                if ((hw?.ram as any)?.is_unified) return 'Apple Silicon';
+                return t('settings.unknown');
+              })()}
             />
             <InfoRow label={t('settings.storage')} value={`${hw?.storage?.total || t('settings.unknown')} (${hw?.storage?.used || '0'} used) (${hw?.storage?.free || '0'} free)`} />
           </div>

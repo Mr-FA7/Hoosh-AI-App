@@ -3427,7 +3427,7 @@ app.get('/api/ai/system-stats', (req, res) => {
     const conversationalPatterns = [
       /^(می‌?فهم|میفهم)/,          // میفهمی؟ میفهمم
       /^(آیا|آیا می|میتونی|می‌?تونی)/,
-      /^(چی|چطور|کجا|کِی|کی|چرا|چقدر|چند)\b/,
+      /^(چی|چطور|چطوری|چطوره|کجا|کِی|کی|چرا|چقدر|چند|چیه|چه خبر)/,  // no \b: it is ASCII-based and misbehaves with Persian suffixes
       /^(می‌?دونی|میدونی|بگو|توضیح)/,
       /\?$/,                          // ends with question mark
       /؟$/,                           // Persian question mark
@@ -3676,7 +3676,12 @@ app.get('/api/ai/system-stats', (req, res) => {
       // Override intent if mode is explicitly an autonomous one
       if (mode === 'plan' || mode === 'debug') {
           intent = 'mission';
-      } else if (mode === 'agent' && currentProjectRoot && !isSimpleGreeting(lastMessage) && !isConversationalQuestion(lastMessage)) {
+      } else if (mode === 'agent' && currentProjectRoot && intent !== 'chat'
+                 && !isSimpleGreeting(lastMessage) && !isConversationalQuestion(lastMessage)) {
+          // Agent mode runs a mission only when the classifier judged the
+          // message a mission. Casual talk ("چطوری", "نظرت چیه") that
+          // classifyIntent labelled 'chat' must NOT be forced into a mission
+          // just because a project is open.
           intent = 'mission';
       } else if (mode === 'ask') {
           intent = 'chat';

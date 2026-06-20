@@ -422,6 +422,119 @@ class ResourceManager {
 
     return all.filter(m => vramGB >= m.vram_gb || ramGB >= m.ram_gb);
   }
+
+  /**
+   * Decide where/how to run a task. Used by kernel.js (agent loop) and the
+   * /api/v3/system/routing routes. Must never throw — callers depend on a
+   * routing_decision object; on any failure it returns a safe local default.
+   */
+  getRoutingDecision(rawInput) {
+    try {
+      const task = this._normalizeTask(rawInput);
+      const { hardware, system_load } = this.getHardwareStats();
+      const ram = system_load?.ram_usage_percent ?? 0;
+      const vram = system_load?.vram_usage_percent ?? 0;
+
+      const level1 = ram >= 75 || vram >= 80;       // pressure
+      const level2 = ram >= 90 || vram >= 90;       // critical (RAM or VRAM)
+      // Only force cloud on true GPU VRAM exhaustion. macOS reports low
+      // free RAM (cached memory counts as "used") and unified-memory GPUs
+      // report total_vram=0, so RAM pressure alone must NOT push a
+      // local-first (Ollama) setup to the cloud.
+      const vramCritical = vram >= 90;
+
+      const safety_actions = {
+        compress_history: level1,
+        reduce_context: level1,
+        unload_background_models: level1 || task.latency_sensitive || level2,
+        switch_to_cloud: vramCritical
+      };
+      const allocated_context_window = level1 ? 2048 : 4096;
+      const max_concurrent_agents = level2 ? 1 : (level1 ? 2 : 4);
+
+      const fits = this.getRecommendedModels();
+      const names = fits.length ? fits.map(m => m.name) : ['qwen:0.5b'];
+      const smallest = names[0];
+      const largest = names[names.length - 1];
+
+      // Critical GPU VRAM exhaustion → cloud fallback.
+      if (vramCritical) {
+        return {
+          routing_decision: {
+            execution_mode: 'cloud',
+            selected_model: 'gpt-oss:120b-cloud',
+            quantization: 'Q4_K_M',
+            allocated_context_window: 2048,
+            max_concurrent_agents: 1
+          },
+          safety_actions,
+          reasoning: 'Critical load (Level 2): forcing cloud fallback for stability.'
+        };
+      }
+
+      // Lightweight background/summarization on an available NPU.
+      if ((task.type === 'summarization' || task.type === 'background') &&
+          hardware?.npu?.available && this.isOneOf(hardware.npu.capability, ['medium', 'high'])) {
+        return {
+          routing_decision: {
+            execution_mode: 'local_npu',
+            selected_model: smallest,
+            quantization: 'Q4_K_M',
+            allocated_context_window,
+            max_concurrent_agents
+          },
+          safety_actions,
+          reasoning: 'Lightweight workload routed to NPU for power-efficient local execution.'
+        };
+      }
+
+      const hasGpu = (hardware?.gpu?.total_vram || 0) > 0 || hardware?.gpu?.compute_api === 'metal';
+      const selected_model = task.latency_sensitive ? smallest
+        : (task.type === 'reasoning' ? largest
+        : (names.includes('mistral:latest') ? 'mistral:latest' : largest));
+
+      return {
+        routing_decision: {
+          execution_mode: hasGpu ? 'local_gpu' : 'local_cpu',
+          selected_model,
+          quantization: 'Q4_K_M',
+          allocated_context_window,
+          max_concurrent_agents
+        },
+        safety_actions,
+        reasoning: `Routed locally (${task.type}/${task.priority}) on ${hasGpu ? 'GPU' : 'CPU'}.`
+      };
+    } catch (e) {
+      return {
+        routing_decision: {
+          execution_mode: 'local_gpu',
+          selected_model: 'mistral:latest',
+          quantization: 'Q4_K_M',
+          allocated_context_window: 4096,
+          max_concurrent_agents: 2
+        },
+        safety_actions: {},
+        reasoning: `Routing fell back to safe default: ${e.message}`
+      };
+    }
+  }
+
+  _normalizeTask(rawInput) {
+    const src = (rawInput && rawInput.task && typeof rawInput.task === 'object') ? rawInput.task : rawInput;
+    const t = (src && typeof src === 'object') ? src : {};
+    const type = this.isOneOf(t.type, ['chat', 'coding', 'reasoning', 'summarization', 'background']) ? t.type : 'chat';
+    const priority = this.isOneOf(t.priority, ['low', 'medium', 'high']) ? t.priority : 'medium';
+    return { type, priority, latency_sensitive: !!t.latency_sensitive };
+  }
+
+  /**
+   * Optional feature dependency gate (used by kernel for negah/voice). The
+   * dependency registry was removed in a refactor; return [] so the agent
+   * proceeds rather than crashing. Callers use .length and .map.
+   */
+  getMissingDependencies(_feature) {
+    return [];
+  }
 }
 
 module.exports = ResourceManager;

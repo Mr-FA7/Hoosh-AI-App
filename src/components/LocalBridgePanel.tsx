@@ -82,9 +82,9 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
               <li>نصب کنید — همه چیز خودکار راه‌اندازی می‌شود</li>
               <li>این صفحه را <strong>Refresh</strong> کنید</li>
             </> : <>
-              <li>zip را باز کرده، <strong>HooshCompanion.command</strong> را اجرا کنید</li>
-              <li>پنجره ترمینال را باز نگه دارید</li>
-              <li>این صفحه را <strong>Refresh</strong> کنید</li>
+              <li>zip را باز کنید، روی <strong>HooshCompanion.app</strong> راست‌کلیک → <strong>Open</strong> (فقط بار اول، برای رد کردن Gatekeeper)</li>
+              <li>وقتی Chrome پرسید «access other apps»، <strong>Allow</strong> بزنید</li>
+              <li>خودکار وصل می‌شود — نیازی به باز نگه‌داشتن ترمینال نیست</li>
             </>}
           </ol>
 

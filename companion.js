@@ -889,6 +889,12 @@ app.post('/api/v3/github/publish', async (req, res) => {
   }
 });
 
+// Ultra-light liveness probe. The site checks this to detect the companion;
+// it must answer instantly (system/health spawns toolchain checks and can take
+// 10s+, which would blow the 2.5s connection-probe timeout and look "offline").
+app.get('/api/v3/ping', (req, res) => {
+    res.json({ ok: true, name: 'FA7 OS Companion', port: PORT });
+});
 app.get('/api/v3/system/health', async (req, res) => {
     res.json(await health.checkAll());
 });
@@ -4652,8 +4658,18 @@ app.get('/api/ai/system-stats', (req, res) => {
 
   await loadFa7Plugins();
 
-  const { mountHooshExtensionRoutes } = require('./lib/hooshExtensionHost');
-  mountHooshExtensionRoutes(app, PORT);
+  // Optional: Hoosh extension host routes. Missing module must not crash the
+  // companion (otherwise the local bridge never binds and aihoosh.com can't connect).
+  try {
+    const { mountHooshExtensionRoutes } = require('./lib/hooshExtensionHost');
+    mountHooshExtensionRoutes(app, PORT);
+  } catch (e) {
+    if (e && e.code === 'MODULE_NOT_FOUND' && /hooshExtensionHost/.test(e.message)) {
+      console.warn('[FA7 OS] hooshExtensionHost not present — skipping (core extension routes still active)');
+    } else {
+      throw e;
+    }
+  }
 
   // Packaged Electron loads the UI from companion so /assets/* resolve correctly (file:// breaks absolute paths).
   if (process.env.FA7_ELECTRON_MODE) {

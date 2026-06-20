@@ -16,7 +16,7 @@ let directCompanionReachable = false;
 /** Try fetching companion directly (no extension) — works when server adds PNA headers */
 async function probeDirectLocalhost(): Promise<boolean> {
   try {
-    const res = await fetch(`${COMPANION_DIRECT_URL}/api/v3/system/health`, {
+    const res = await fetch(`${COMPANION_DIRECT_URL}/api/v3/ping`, {
       method: 'GET',
       signal: AbortSignal.timeout(2500),
     });

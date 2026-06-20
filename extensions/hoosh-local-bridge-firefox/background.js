@@ -37,7 +37,7 @@ const runtime = typeof browser !== 'undefined' ? browser.runtime : chrome.runtim
 
 runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'hoosh-bridge-ping') {
-    proxyFetch({ path: '/api/v3/system/health', method: 'GET' })
+    proxyFetch({ path: '/api/v3/ping', method: 'GET' })
       .then((result) => sendResponse({ ok: result.ok && result.status === 200, result }))
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
     return true;

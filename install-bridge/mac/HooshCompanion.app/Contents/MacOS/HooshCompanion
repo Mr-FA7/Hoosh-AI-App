@@ -1,0 +1,95 @@
+#!/bin/bash
+# Hoosh Companion — one-click macOS launcher (no Terminal to babysit).
+# Double-click starts the local companion in the background and opens aihoosh.com.
+# Re-running is safe: if it's already up, it just opens the site.
+
+# Finder-launched apps get a minimal PATH — restore common Node/git locations.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+APP="$(cd "$(dirname "$0")/../.." && pwd)"          # .../HooshCompanion.app
+STATE="$HOME/.hoosh"
+LOG="$STATE/companion.log"
+PIDFILE="$STATE/companion.pid"
+PORT="${FA7_PORT:-3001}"
+REPO_URL="https://github.com/Mr-FA7/Hoosh-AI-App.git"
+mkdir -p "$STATE"
+
+notify() { /usr/bin/osascript -e "display notification \"$1\" with title \"Hoosh Companion\"" >/dev/null 2>&1; }
+alert()  { /usr/bin/osascript -e "display dialog \"$1\" with title \"Hoosh Companion\" buttons {\"OK\"} default button 1 with icon caution" >/dev/null 2>&1; }
+
+# Make future double-clicks skip the Gatekeeper prompt (first launch still needs right-click → Open).
+xattr -dr com.apple.quarantine "$APP" >/dev/null 2>&1 || true
+
+# Already running? Offer to open the site or stop the companion.
+if curl -fsS -m 3 "http://127.0.0.1:$PORT/api/v3/ping" >/dev/null 2>&1; then
+  CHOICE="$(/usr/bin/osascript -e 'button returned of (display dialog "Hoosh Companion is running." with title "Hoosh Companion" buttons {"Stop", "Open aihoosh.com"} default button "Open aihoosh.com" with icon note)' 2>/dev/null)"
+  if [ "$CHOICE" = "Stop" ]; then
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+    pkill -f "node companion.js" 2>/dev/null
+    rm -f "$PIDFILE"
+    notify "Stopped."
+  else
+    open "https://aihoosh.com"
+  fi
+  exit 0
+fi
+
+# Prerequisite: Node.js
+if ! command -v node >/dev/null 2>&1; then
+  alert "Node.js is required and was not found. The download page will open — install Node, then run Hoosh Companion again."
+  open "https://nodejs.org/en/download"
+  exit 1
+fi
+
+# Locate the repo. Prefer a checkout the app sits inside (developer case), else ~/Hoosh-AI-App.
+ROOT=""
+for cand in "$APP/../../.." "$APP/../.." "$HOME/Hoosh-AI-App" "$HOME/Desktop/Hoosh AI"; do
+  if [ -f "$cand/companion.js" ]; then ROOT="$(cd "$cand" && pwd)"; break; fi
+done
+
+if [ -z "$ROOT" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    alert "git is required for first-time setup. The download page will open — install git, then run Hoosh Companion again."
+    open "https://git-scm.com/download/mac"
+    exit 1
+  fi
+  ROOT="$HOME/Hoosh-AI-App"
+  notify "First run: downloading Hoosh (this takes a minute)…"
+  if ! git clone --depth 1 "$REPO_URL" "$ROOT" >>"$LOG" 2>&1; then
+    alert "Could not download Hoosh. Check your internet connection. Details: $LOG"
+    exit 1
+  fi
+fi
+
+cd "$ROOT" || { alert "Project folder not found."; exit 1; }
+
+# Dependencies (first run only)
+if [ ! -d node_modules ]; then
+  notify "Installing dependencies (first run, ~1–2 min)…"
+  if ! npm install --legacy-peer-deps >>"$LOG" 2>&1; then
+    alert "Dependency install failed. Details: $LOG"
+    exit 1
+  fi
+fi
+
+# Pack the browser extension if it isn't built yet (best effort).
+[ -f public/hoosh-local-bridge.zip ] || npm run bridge:pack >>"$LOG" 2>&1 || true
+
+# Start the companion detached so it keeps running after this launcher exits.
+notify "Starting companion…"
+: > "$LOG.run"
+FA7_PORT="$PORT" nohup node companion.js >>"$LOG.run" 2>&1 &
+echo $! > "$PIDFILE"
+
+# Wait for it to come up (up to ~20s).
+for i in $(seq 1 20); do
+  if curl -fsS -m 2 "http://127.0.0.1:$PORT/api/v3/ping" >/dev/null 2>&1; then
+    notify "Connected ✓ — opening aihoosh.com (click Allow when Chrome asks)"
+    open "https://aihoosh.com"
+    exit 0
+  fi
+  sleep 1
+done
+
+alert "Companion did not start in time. Details: $LOG.run"
+exit 1

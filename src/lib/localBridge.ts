@@ -111,7 +111,7 @@ export async function probeLocalBridge(force = false): Promise<boolean> {
   if (!force && bridgeReachable !== null) return bridgeReachable;
   if (!force && bridgeProbeInflight) return bridgeProbeInflight;
 
-  bridgeProbeInflight = bridgeFetchRaw('GET', '/api/v3/system/health')
+  bridgeProbeInflight = bridgeFetchRaw('GET', '/api/v3/ping')
     .then((r) => r.status === 200)
     .catch(() => false)
     .finally(() => {

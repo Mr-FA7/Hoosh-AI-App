@@ -3341,7 +3341,13 @@ app.get('/api/ai/system-stats', (req, res) => {
           'change', 'update', 'modify', 'patch', 'fix', 
           'verify', 'test', 'negah', 'check', 'add', 'remove',
           'research', 'analyze', 'analysis', 'internet', 'search web', 'download source',
-          'تحقیق', 'تحلیل', 'بررسی', 'سرچ', 'دانلود', 'اینترنت', 'ترمینال', 'قابلیت'      ];
+          'تحقیق', 'تحلیل', 'بررسی', 'سرچ', 'دانلود', 'اینترنت', 'ترمینال', 'قابلیت',
+          // Persian action/build verbs — classifyIntent used to miss these and
+          // the LLM fallback mislabelled "یه وب بساز" as chat.
+          'بساز', 'بسازی', 'بنویس', 'بنویسی', 'درست کن', 'ایجاد', 'اضافه کن', 'اضافه‌ کن',
+          'تغییر بده', 'تغییرش بده', 'تغییر', 'عوض کن', 'عوضش کن', 'حذف کن', 'پاک کن',
+          'ویرایش', 'اجرا کن', 'نصب کن', 'رفع کن', 'پیاده‌سازی', 'پیاده سازی', 'کدنویسی', 'کد بزن'
+      ];
       if (missionKeywords.some(kw => p.includes(kw))) {
           return 'mission';
       }

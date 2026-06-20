@@ -278,21 +278,34 @@ class AgentKernel {
             'qwen2.5:32b': 'qwen2.5:0.5b'
         };
         const requested = aliasMap[preferredModel] || preferredModel;
+        // Capability-first: a tiny 0.5b model cannot follow the agent/tool
+        // protocol (it dumps code as text instead of calling writeFile), so
+        // prefer real coder/instruct models and keep 0.5b only as a last resort.
+        // Prefer fast, capable mid-size coder/instruct models. Heavy 33b-class
+        // models are last-resort-capable (they work but crawl on <32GB RAM).
         const fastPreference = [
-            'qwen2.5:0.5b',
-            'qwen:0.5b',
-            'gemma3:1b',
+            'qwen2.5-coder:7b',
+            'qwen2.5-coder:latest',
+            'deepseek-coder:6.7b',
             'mistral:latest',
             'mistral:7b',
+            'qwen2.5:7b',
             'llama3.2',
-            'deepseek-coder:33b'
+            'codellama:latest',
+            'deepseek-coder:33b',
+            'gemma3:1b',
+            'qwen2.5:0.5b',
+            'qwen:0.5b'
         ];
         try {
             const tags = await axios.get(`${this.ollamaUrl}/api/tags`, { timeout: 2500 });
             const models = Array.isArray(tags.data?.models) ? tags.data.models.map(m => m.name) : [];
-            const ramFree = this.resManager?.getHardwareStats?.()?.hardware?.ram?.free || 99999;
+            // Gate heavy models on TOTAL RAM, not free RAM: macOS reports
+            // misleadingly low free memory (cached pages count as used), which
+            // previously excluded capable models and forced the 0.5b fallback.
+            const ramTotal = this.resManager?.getHardwareStats?.()?.hardware?.ram?.total || 99999;
             const heavyModels = ['deepseek-coder:33b', 'qwen2.5:32b', 'gemma3:27b', 'qwen3:30b'];
-            const pool = ramFree < 4096
+            const pool = ramTotal < 20480
                 ? models.filter((m) => !heavyModels.some((h) => m === h || m.startsWith(h.split(':')[0] + ':')))
                 : models;
             const pickFrom = pool.length ? pool : models;

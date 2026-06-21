@@ -3331,7 +3331,10 @@ app.get('/api/ai/system-stats', (req, res) => {
           'سلام', 'درود', 'hi', 'hello', 'hey', 'چطوری', 'how are you',
           'پیشنهاد', 'suggestion', 'نظر', 'idea', 'what do you think', 'چی کم داره'
       ];
-      if (chatOnlyKeywords.some(kw => p.includes(kw)) && !/(build|create|fix|edit|change|research|search|download|نصب|ویرایش|تغییر|تحلیل)/.test(p)) {
+      // A greeting word can appear inside a real task ("بساز یک صفحه که بنویسد سلام"),
+      // so only treat as chat-only when no build/action verb is present.
+      if (chatOnlyKeywords.some(kw => p.includes(kw)) &&
+          !/(build|create|fix|edit|change|research|search|download|نصب|ویرایش|تغییر|تحلیل|بساز|بنویس|درست کن|ایجاد|اضافه کن|عوض کن|حذف کن|پاک کن|اجرا کن|کد بزن)/.test(p)) {
           return 'chat';
       }
 
@@ -3527,6 +3530,10 @@ app.get('/api/ai/system-stats', (req, res) => {
       : (event) => ({ agent_event: event });
 
     let paused = false;
+    // Fully-delegated mission: commit writes directly + auto-approve so files
+    // actually land on disk (within the project root) instead of waiting on
+    // DiffZone/approval that a headless mission has no one to confirm.
+    kernel.setAutonomousExecution?.(true);
     try {
       const result = await kernel.executeAutonomousLoop(goal, {
         mode: options.mode,
@@ -3551,6 +3558,8 @@ app.get('/api/ai/system-stats', (req, res) => {
         console.error('[FA7 OS] Mission Loop Error:', e);
         writeJsonLine(res, wrapEvent({ type: 'error', message: e.message }));
       }
+    } finally {
+      kernel.setAutonomousExecution?.(false);
     }
 
     if (!missionAborted && !paused) {

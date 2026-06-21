@@ -41,7 +41,18 @@ function extractRobustJSON(text) {
                 else if (ch === '}') {
                     braceCount--;
                     if (braceCount === 0) {
-                        return JSON.parse(clean.substring(start, i + 1));
+                        const sub = clean.substring(start, i + 1);
+                        const CONTROL_CHARS = new RegExp('[\\u0000-\\u001F]', 'g');
+                        try {
+                            return JSON.parse(sub);
+                        } catch {
+                            // Models often put raw newlines/tabs inside string
+                            // values (e.g. file content), which is invalid JSON.
+                            // Escape control chars and retry so the writeFile
+                            // tool call still executes.
+                            return JSON.parse(sub.replace(CONTROL_CHARS, (c) =>
+                                ({ '\n': '\\n', '\r': '\\r', '\t': '\\t' }[c] || ' ')));
+                        }
                     }
                 }
             }
@@ -104,6 +115,30 @@ class AgentKernel {
 
     setDeferWrites(enabled) {
         this.deferWrites = !!enabled;
+    }
+
+    /**
+     * Autonomous execution mode for fully-delegated missions ("build me X").
+     * Commits writes directly (no DiffZone to apply by hand) and auto-approves
+     * tools so the loop doesn't hang on an approval prompt nobody answers.
+     * The relative-path guard in executeTool still confines writes to the
+     * project root, so it can only touch the opened project folder.
+     */
+    setAutonomousExecution(on) {
+        if (on) {
+            this._prevDefer = this.deferWrites;
+            this.deferWrites = false;
+            // Toggle in-memory only (do not persist yolo to disk).
+            if (this.approvalManager?.config) {
+                this._prevYolo = this.approvalManager.config.yolo;
+                this.approvalManager.config.yolo = true;
+            }
+        } else {
+            if (this._prevDefer !== undefined) this.deferWrites = this._prevDefer;
+            if (this.approvalManager?.config && this._prevYolo !== undefined) {
+                this.approvalManager.config.yolo = this._prevYolo;
+            }
+        }
     }
 
     _emitDiffzone(emit, relPath, original, proposed) {
@@ -319,6 +354,48 @@ class AgentKernel {
             return requested;
         }
     }
+
+    /**
+     * Hybrid model tiers (cached per kernel). The user's machine can't run a
+     * capable model locally without pressure, but the managed Ollama is signed
+     * into Ollama Cloud, so:
+     *  - light: fast, low-pressure LOCAL model for cheap steps (parallel
+     *    research reads, quick summaries).
+     *  - heavy: a capable model for planning/coding/tool-calls. Prefers a CLOUD
+     *    model served by the local managed Ollama (already authenticated, zero
+     *    local RAM pressure); falls back to the best local model when offline.
+     * Both are reached through this.ollamaUrl — managed Ollama serves local and
+     * "-cloud" models on the same endpoint, so no API key wiring is needed.
+     */
+    async getHybridModels() {
+        if (this._hybridModels) return this._hybridModels;
+        const probeCloud = async (m) => {
+            try {
+                await axios.post(`${this.ollamaUrl}/api/generate`,
+                    { model: m, prompt: 'ok', stream: false, options: { num_predict: 1 } },
+                    { timeout: 6000 });
+                return true;
+            } catch { return false; }
+        };
+        // Heavy: capable cloud model for planning/coding/tool-calls.
+        let heavy = null;
+        for (const m of ['gpt-oss:120b-cloud', 'gpt-oss:20b-cloud', 'qwen3-coder:480b-cloud']) {
+            if (await probeCloud(m)) { heavy = m; break; }
+        }
+        const cloudOk = !!heavy;
+        // Light: cheap steps (parallel research reads). A fast CLOUD model is
+        // preferred even here — it has zero local RAM pressure and, unlike the
+        // 0.5b local model, is reliable enough to not hang the research phase.
+        let light;
+        if (cloudOk && await probeCloud('gpt-oss:20b-cloud')) light = 'gpt-oss:20b-cloud';
+        else light = await this.resolveLocalModelName('qwen2.5:0.5b');
+        if (!heavy) heavy = await this.resolveLocalModelName('deepseek-coder:33b');
+        this._hybridModels = { light, heavy, cloudOk };
+        console.log(`[FA7 OS] Hybrid models — light: ${light} | heavy${cloudOk ? '(cloud)' : '(local)'}: ${heavy}`);
+        return this._hybridModels;
+    }
+
+    resetHybridModels() { this._hybridModels = null; }
 
     async init() {
         try {
@@ -856,18 +933,21 @@ class AgentKernel {
             }
         }
 
-        let selectedModel = await this.resolveLocalModelName(routingDecision.selected_model || 'mistral:latest');
+        // 🔀 Hybrid routing: cheap research reads (tier 'light') → fast LOCAL
+        // model; planning/coding/tool-calls → heavy model (cloud via managed
+        // Ollama when available, else best local). Same endpoint serves both.
+        const hybrid = await this.getHybridModels();
+        const useLight = context.tier === 'light';
+        let selectedModel = useLight ? hybrid.light : hybrid.heavy;
         let targetUrl = this.ollamaUrl;
         const headers = {};
 
-        // ☁️ Ollama Cloud Header Logic
-        if (routingDecision.execution_mode === 'cloud') {
+        // Legacy explicit cloud routing via ollama.com — only when the managed
+        // Ollama has no cloud model but an API key is configured.
+        if (routingDecision.execution_mode === 'cloud' && !hybrid.cloudOk && process.env.OLLAMA_API_KEY) {
             targetUrl = 'https://ollama.com';
-            if (process.env.OLLAMA_API_KEY) headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
-            else { 
-                targetUrl = this.ollamaUrl; 
-                selectedModel = await this.resolveLocalModelName(routingDecision.selected_model || 'mistral:latest');
-            }
+            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
+            selectedModel = routingDecision.selected_model || 'gpt-oss:120b-cloud';
         }
 
         const systemPrompts = {
@@ -1000,7 +1080,16 @@ class AgentKernel {
     async _stepProcess(step, goal, contextStr, previousResults, lang, emit) {
         const assignee = step.assignee || 'coder';
         const generatePrompt = (extra = '') =>
-            `Step: ${step.task}\nGoal: ${goal}\nContext: ${contextStr}\nPrevious Results: ${JSON.stringify(previousResults.slice(-2))}${extra}`;
+            `You are implementing ONE step of a build mission. Act now — do not just describe.\n` +
+            `Project root (write files here, relative paths): ${this.projectRoot}\n` +
+            `Step ${step.id}: ${step.task}\n` +
+            `Overall goal: ${goal}\n` +
+            `Context: ${String(contextStr).slice(0, 4000)}\n` +
+            `Previous results: ${JSON.stringify(previousResults.slice(-2)).slice(0, 1500)}\n\n` +
+            `To create or overwrite a file you MUST emit exactly one tool call line (not prose, not a code fence):\n` +
+            `TOOL: {"name":"writeFile","args":{"path":"index.html","content":"<full file contents>"}}\n` +
+            `Emit one writeFile per file. After each tool result, continue with the next file. ` +
+            `When every file required by the goal exists, reply with a short done note (no TOOL).${extra}`;
 
         let toolContext = '';
         let lastModelText = '';

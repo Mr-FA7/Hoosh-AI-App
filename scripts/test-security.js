@@ -180,6 +180,42 @@ check('manifest: secrets => elevated', validateManifest({ ...goodManifest, permi
     check('autonomous: approval config restored afterwards', JSON.stringify(mgr2.config.autoApprove) === snapshot);
   }
 
+  // ── Code navigation tools (glob/grep) stay inside the project ─────────────
+  {
+    const AgentKernel = require(path.join(ROOT, 'kernel.js'));
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'hoosh-nav-'));
+    fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(proj, 'node_modules', 'junk'), { recursive: true });
+    fs.mkdirSync(path.join(proj, '.github'), { recursive: true });
+    fs.writeFileSync(path.join(proj, 'src', 'a.ts'), 'export const NEEDLE = 1;\nconst other = 2;\n');
+    fs.writeFileSync(path.join(proj, 'src', 'b.js'), 'console.log("NEEDLE here");\n');
+    fs.writeFileSync(path.join(proj, '.github', 'ci.yml'), 'name: ci\n');
+    fs.writeFileSync(path.join(proj, 'node_modules', 'junk', 'c.ts'), 'NEEDLE in vendor\n');
+    // A secret outside the project must never be reachable.
+    const outside = path.join(proj, '..', `hoosh-outside-${Date.now()}.txt`);
+    fs.writeFileSync(outside, 'NEEDLE outside\n');
+
+    const nk = new AgentKernel(proj, 'http://127.0.0.1:11434', null);
+    const g = await nk.executeTool('glob', { pattern: 'src/*.ts' });
+    check('glob finds project files', g.includes('src/a.ts') && !g.includes('src/b.js'));
+
+    const dot = await nk.executeTool('glob', { pattern: '**/*.yml' });
+    check('glob includes dotted dirs like .github', dot.includes('.github/ci.yml'));
+
+    const gr = await nk.executeTool('grep', { pattern: 'NEEDLE' });
+    check('grep reports path:line matches', /src\/a\.ts:1:/.test(gr));
+    check('grep skips node_modules', !gr.includes('node_modules'));
+    check('grep cannot reach outside the project root', !gr.includes('outside'));
+
+    const scoped = await nk.executeTool('grep', { pattern: 'NEEDLE', glob: 'src/*.js' });
+    check('grep honours a glob filter', scoped.includes('src/b.js') && !scoped.includes('src/a.ts'));
+
+    const bad = await nk.executeTool('grep', { pattern: '([unclosed' });
+    check('grep rejects an invalid regex without throwing', /Tool Error/.test(bad));
+
+    try { fs.rmSync(proj, { recursive: true, force: true }); fs.rmSync(outside, { force: true }); } catch { /* ignore */ }
+  }
+
   console.log(`\nResults: ${pass} passed, ${fail} failed (${pass + fail} total)`);
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
   process.exit(fail ? 1 : 0);

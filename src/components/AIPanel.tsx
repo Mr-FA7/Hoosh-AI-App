@@ -1020,6 +1020,18 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const dragCounter = useRef(0);
 
   const [currentMission, setCurrentMission] = useState<{ name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } | null>(null);
+  // In a non-maximised window the panel gets narrow; the long placeholder then
+  // wraps onto three lines and collides with the toolbar icons.
+  const [isNarrowPanel, setIsNarrowPanel] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 1000
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 999px)');
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) => setIsNarrowPanel(e.matches);
+    onChange(mq);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const [pendingPlanImplement, setPendingPlanImplement] = useState(false);
   const [checkpointTimeline, setCheckpointTimeline] = useState<Array<{ id: string; label: string; files: string[]; at: string; messageIndex?: number }>>([]);
   const [matchedSkills, setMatchedSkills] = useState<Array<{ id: string; name: string; description?: string }>>([]);
@@ -2876,7 +2888,13 @@ const AIPanel: React.FC<AIPanelProps> = ({
           <textarea
             className="chat-input"
             rows={2}
-            placeholder={isLoading ? "Please wait or Abort Mission..." : "Ask Hoosh · @mention files · Type 'continue'"}
+            placeholder={
+              isLoading
+                ? 'Please wait or Abort Mission...'
+                : isNarrowPanel
+                  ? 'Ask Hoosh…'
+                  : "Ask Hoosh · @mention files · Type 'continue'"
+            }
             value={prompt}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}

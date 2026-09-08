@@ -298,3 +298,100 @@ body, html, #root {
   background: rgba(59, 130, 246, 0.15) !important;
   border-left: 3px solid #3b82f6;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive layout — phone → tablet → laptop → desktop → TV
+
+   The workspace is four side-by-side panels whose widths were all fixed:
+   rail 64 + explorer 250 + workspace min 400 + AI panel 400 = 1114px minimum.
+   Below that, `overflow: hidden` clipped the panels and the app was unusable
+   in anything but a maximised window.
+
+   `min-width: 0` matters: flex items default to `min-width: auto`, which
+   refuses to shrink below their content and is what caused the overflow.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Flex children must be allowed to shrink or content width wins. */
+.workspace-container > *,
+.editor-section > *,
+.ai-panel > * { min-width: 0; }
+
+/* ── TV / ultra-wide (≥1920): roomier so the UI isn't a thin strip ── */
+@media (min-width: 1920px) {
+  .ai-panel { width: 480px; }
+  .file-explorer { width: 300px; }
+}
+
+/* ── Laptop (<1440): tighten the side panels ── */
+@media (max-width: 1439px) {
+  .ai-panel { width: 340px; }
+  .file-explorer { width: 220px; }
+}
+
+/* ── Small laptop (<1200): let every panel actually shrink ── */
+@media (max-width: 1199px) {
+  .ai-panel { width: 300px; min-width: 260px; }
+  .file-explorer { width: 200px; }
+  .workspace-container,
+  .editor-section,
+  .preview-section { min-width: 0; }
+}
+
+/* ── Tablet (<1024): the file tree is the most expendable panel; the icon
+      rail still navigates. React stops rendering it at this width too. ── */
+@media (max-width: 1023px) {
+  .ai-panel { width: 300px; min-width: 240px; }
+  .sidebar { width: 56px; }
+}
+
+/* ── Large phone / small tablet (<820): split the remaining width ── */
+@media (max-width: 819px) {
+  .ai-panel { width: 46%; min-width: 220px; }
+  .sidebar { width: 48px; padding: 10px 0; }
+  .workspace-container,
+  .editor-section,
+  .preview-section { min-width: 0; overflow: hidden; }
+}
+
+/* ── Phone (<640): one pane at a time, chosen by .mobile-pane-switch.
+      Whichever pane is visible takes the full remaining width. ── */
+@media (max-width: 639px) {
+  .sidebar { width: 44px; padding: 8px 0; }
+  .ai-panel,
+  .workspace-container { width: auto; min-width: 0; flex: 1; }
+  .ai-panel { border-left: none; }
+  /* leave room for the pane switch */
+  .fa7-container[data-bp="mobile"] .ai-panel,
+  .fa7-container[data-bp="mobile"] .workspace-container { padding-bottom: 44px; }
+}
+
+/* Phone pane switch — fixed above the status bar. */
+.mobile-pane-switch {
+  position: fixed;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: hsl(var(--bg-sidebar) / 0.95);
+  border: 1px solid hsl(var(--border) / 0.6);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  backdrop-filter: blur(8px);
+}
+.mobile-pane-switch button {
+  border: none;
+  background: transparent;
+  color: hsl(var(--text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.mobile-pane-switch button.active {
+  background: hsl(var(--accent) / 0.9);
+  color: #fff;
+}

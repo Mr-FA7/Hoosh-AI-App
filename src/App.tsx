@@ -31,6 +31,7 @@ import { newWorkspaceTabId } from './types/workspaceTab';
 import { useI18n } from './i18n/LocaleContext';
 import { isDesktopShell } from './lib/pythonBridge';
 import { wireExtensionKeybindings, loadExtensionKeybindings } from './lib/extensionKeybindings';
+import { useBreakpoint } from './lib/useBreakpoint';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -60,6 +61,13 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 const App: React.FC = () => {
   const { t } = useI18n();
   const [isDesktop, setIsDesktop] = useState(false);
+  // The workspace is four side-by-side panels, so the layout has to adapt from
+  // phones to TVs. CSS alone can't drop the file tree: FileExplorer sets an
+  // inline `display: flex` and its Framer Motion wrapper an inline width, and
+  // inline styles beat any stylesheet rule — so it must be decided in React.
+  const { bp, isMobile, isNarrow } = useBreakpoint();
+  // On a phone there is only room for one pane at a time.
+  const [mobilePane, setMobilePane] = useState<'work' | 'chat'>('chat');
   const [projectRoot, setProjectRoot] = useState<string | null>(null);
   const [files, setFiles] = useState<any[]>([]);
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([]);
@@ -404,14 +412,14 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="fa7-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <div className="fa7-container" data-bp={bp} style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Panel 1: Thinnest Bar */}
           <Sidebar viewMode={viewMode} setViewMode={setViewMode} isDesktop={isDesktop} />
           
           {/* Panel 2: Contextual Sidebar (Explorer) */}
           <AnimatePresence mode="popLayout">
-            {viewMode === 'editor' && (
+            {viewMode === 'editor' && !isNarrow && (
               <motion.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 250, opacity: 1 }}
@@ -432,8 +440,12 @@ const App: React.FC = () => {
             )}
           </AnimatePresence>
   
-          {/* Panel 3: Main Workspace */}
-          <main className="workspace-container" style={{ flex: 1, display: 'flex', background: 'hsl(var(--bg-main))' }}>
+          {/* Panel 3: Main Workspace — on a phone only one pane is shown */}
+          <main
+            className="workspace-container"
+            hidden={isMobile && mobilePane !== 'work'}
+            style={{ flex: 1, display: isMobile && mobilePane !== 'work' ? 'none' : 'flex', background: 'hsl(var(--bg-main))' }}
+          >
             <div className="editor-section" style={{ borderRight: 'none', flex: 1 }}>
               <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                 <AnimatePresence mode="wait">
@@ -508,6 +520,10 @@ const App: React.FC = () => {
           </main>
   
           {/* Panel 4: AI Panel */}
+          {/* `display: contents` keeps .ai-panel a direct flex child while still
+              letting us hide the pane on mobile WITHOUT unmounting it, so the
+              conversation survives toggling between work and chat. */}
+          <div style={{ display: isMobile && mobilePane !== 'chat' ? 'none' : 'contents' }}>
           <AIPanel
             activeFile={activeFile}
             currentContent={content}
@@ -532,6 +548,29 @@ const App: React.FC = () => {
             }}
             onMissionDiffZone={(proposal) => setMissionDiffZone(proposal)}
           />
+          </div>
+
+          {/* Phone-only switch between the workspace and the chat. */}
+          {isMobile && (
+            <div className="mobile-pane-switch" role="tablist" aria-label="Panel">
+              <button
+                role="tab"
+                aria-selected={mobilePane === 'work'}
+                className={mobilePane === 'work' ? 'active' : ''}
+                onClick={() => setMobilePane('work')}
+              >
+                {t('layout.work')}
+              </button>
+              <button
+                role="tab"
+                aria-selected={mobilePane === 'chat'}
+                className={mobilePane === 'chat' ? 'active' : ''}
+                onClick={() => setMobilePane('chat')}
+              >
+                {t('layout.chat')}
+              </button>
+            </div>
+          )}
         </div>
   
         <BottomBar 

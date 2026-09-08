@@ -1937,6 +1937,36 @@ app.get('/api/ai/system-stats', (req, res) => {
     res.json(loadAgentConfig());
   });
 
+  /**
+   * Which models the agent will actually run — so the UI can show whether a
+   * mission is local or cloud, and prove that Offline Strict stays offline.
+   * Pass ?allowedModels=a,b to preview the resolution under a given policy.
+   */
+  app.get('/api/v3/agent/models', async (req, res) => {
+    const preview = typeof req.query.allowedModels === 'string' && req.query.allowedModels.trim()
+      ? req.query.allowedModels.split(',').map((s) => s.trim()).filter(Boolean)
+      : null;
+    const previousPolicy = kernel.getModelPolicy?.() || null;
+    try {
+      if (preview) kernel.setModelPolicy(preview);
+      const h = await kernel.getHybridModels();
+      const isCloud = (d) => /(?:-cloud$|:cloud$)/i.test(String(d?.model || ''));
+      res.json({
+        ok: true,
+        light: { ...h.light, cloud: isCloud(h.light) },
+        heavy: { ...h.heavy, cloud: isCloud(h.heavy) },
+        cloudOk: h.cloudOk,
+        offline: !isCloud(h.light) && !isCloud(h.heavy),
+        policy: kernel.getModelPolicy?.() || null
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    } finally {
+      // A preview must not leak into the kernel's real policy.
+      if (preview) kernel.setModelPolicy(previousPolicy);
+    }
+  });
+
   app.post('/api/v3/agent/config', (req, res) => {
     try {
       const cfg = {
@@ -3534,6 +3564,20 @@ app.get('/api/ai/system-stats', (req, res) => {
     // actually land on disk (within the project root) instead of waiting on
     // DiffZone/approval that a headless mission has no one to confirm.
     kernel.setAutonomousExecution?.(true);
+    // Tell the UI up front which models this mission will actually use, so
+    // local-vs-cloud is visible rather than guessed.
+    try {
+      const h = await kernel.getHybridModels();
+      const isCloud = (d) => /(?:-cloud$|:cloud$)/i.test(String(d?.model || ''));
+      writeJsonLine(res, wrapEvent({
+        type: 'models',
+        light: h.light.model,
+        heavy: h.heavy.model,
+        api: h.heavy.api,
+        cloud: isCloud(h.heavy),
+        offline: !isCloud(h.light) && !isCloud(h.heavy)
+      }));
+    } catch { /* non-fatal — mission continues */ }
     try {
       const result = await kernel.executeAutonomousLoop(goal, {
         mode: options.mode,

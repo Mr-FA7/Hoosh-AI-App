@@ -390,6 +390,10 @@ class AgentKernel {
         if (changed) this.resetHybridModels();
     }
 
+    getModelPolicy() {
+        return Array.isArray(this._allowedModels) ? [...this._allowedModels] : null;
+    }
+
     _isModelAllowed(name) {
         const allow = this._allowedModels;
         if (!Array.isArray(allow) || allow.length === 0) return true;

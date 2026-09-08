@@ -124,22 +124,25 @@ function chatThreadToApiMessages(
 }
 
 /** Maps kernel /api/ai/chat mission stream events to the Active Mission card in AIPanel. */
+/** Which models a mission actually runs on — shown so local vs cloud is visible. */
+type MissionModels = { light: string; heavy: string; cloud: boolean; offline: boolean };
+
 function reduceMissionState(
-  prev: { name?: string; plan: any; steps: any[]; status: string } | null,
+  prev: { name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } | null,
   ev: Record<string, unknown>,
   tr: (key: string) => string
-): { name?: string; plan: any; steps: any[]; status: string } | null {
+): { name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } | null {
   const t = String(ev.type || '');
   if (t === 'model_chunk' || t === 'token' || t === 'rescan' || t === 'done') return prev;
 
   if (prev === null) {
     if (t === 'status') return null;
-    if (t !== 'mission_name' && t !== 'plan' && t !== 'step_start' && t !== 'step_complete' && t !== 'finish' && t !== 'error') {
+    if (t !== 'mission_name' && t !== 'plan' && t !== 'step_start' && t !== 'step_complete' && t !== 'finish' && t !== 'error' && t !== 'models') {
       return null;
     }
   }
 
-  const empty = (): { name?: string; plan: any; steps: any[]; status: string } => ({
+  const empty = (): { name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } => ({
     name: undefined,
     plan: undefined,
     steps: [],
@@ -149,6 +152,17 @@ function reduceMissionState(
   const base = prev ?? empty();
 
   switch (t) {
+    case 'models': {
+      return {
+        ...base,
+        models: {
+          light: String((ev as { light?: string }).light || ''),
+          heavy: String((ev as { heavy?: string }).heavy || ''),
+          cloud: !!(ev as { cloud?: boolean }).cloud,
+          offline: !!(ev as { offline?: boolean }).offline
+        }
+      };
+    }
     case 'mission_name': {
       const name = typeof ev.name === 'string' ? ev.name : base.name;
       return { ...base, name, status: name ? `«${name}»` : base.status };
@@ -226,7 +240,7 @@ interface ChatSession {
   updatedAt: string;
   mode: FA7Mode;
   messages: ChatMsg[];
-  currentMission: { name?: string; plan: any; steps: any[]; status: string } | null;
+  currentMission: { name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } | null;
   pinned: boolean;
   temporary?: boolean;
   backendSessionId?: string;
@@ -1005,7 +1019,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const dragCounter = useRef(0);
 
-  const [currentMission, setCurrentMission] = useState<{ name?: string; plan: any; steps: any[]; status: string } | null>(null);
+  const [currentMission, setCurrentMission] = useState<{ name?: string; plan: any; steps: any[]; status: string; models?: MissionModels } | null>(null);
   const [pendingPlanImplement, setPendingPlanImplement] = useState(false);
   const [checkpointTimeline, setCheckpointTimeline] = useState<Array<{ id: string; label: string; files: string[]; at: string; messageIndex?: number }>>([]);
   const [matchedSkills, setMatchedSkills] = useState<Array<{ id: string; name: string; description?: string }>>([]);
@@ -2502,6 +2516,29 @@ const AIPanel: React.FC<AIPanelProps> = ({
                         <span>{currentMission.steps.filter((s: any) => s.status === 'completed').length}/{currentMission.steps.length} {t('aiPanel.tasks')}</span>
                       )}
                     </div>
+
+                    {/* Which models this mission actually runs on (local vs cloud). */}
+                    {currentMission.models && (
+                      <div
+                        title={`${t('aiPanel.modelHeavy')}: ${currentMission.models.heavy}\n${t('aiPanel.modelLight')}: ${currentMission.models.light}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px', fontSize: '10px' }}
+                      >
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          padding: '3px 8px', borderRadius: '999px', fontWeight: 700,
+                          color: currentMission.models.offline ? '#4ade80' : '#60a5fa',
+                          background: currentMission.models.offline ? 'rgba(74,222,128,0.12)' : 'rgba(96,165,250,0.12)',
+                          border: `1px solid ${currentMission.models.offline ? 'rgba(74,222,128,0.35)' : 'rgba(96,165,250,0.35)'}`
+                        }}>
+                          {currentMission.models.offline
+                            ? <><Lock size={10} /> {t('aiPanel.runningLocal')}</>
+                            : <><Server size={10} /> {t('aiPanel.runningCloud')}</>}
+                        </span>
+                        <span style={{ color: '#71717a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {currentMission.models.heavy}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Progress Bar */}
                     {currentMission.steps && currentMission.steps.length > 0 && (

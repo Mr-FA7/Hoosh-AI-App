@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle, Layers, Sparkles, MoreHorizontal } from 'lucide-react';
+import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle, Layers, Sparkles, MoreHorizontal, MessageSquarePlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useI18n } from '../i18n/LocaleContext';
 import './Sidebar.css';
 
 export type ViewMode =
-  | 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media'
+  | 'home' | 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media'
   | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems';
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ interface SidebarProps {
  * advanced — mostly driven by the agent; a human opens them to inspect
  */
 const PRIMARY = [
+  { id: 'home', icon: <MessageSquarePlus size={20} />, labelKey: 'sidebar.home' },
   { id: 'editor', icon: <Layout size={20} />, labelKey: 'sidebar.neuralEditor' },
   { id: 'terminal', icon: <Terminal size={20} />, labelKey: 'sidebar.terminal' },
   { id: 'git', icon: <GitBranch size={20} />, labelKey: 'sidebar.git' },

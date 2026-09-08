@@ -32,6 +32,7 @@ import { useI18n } from './i18n/LocaleContext';
 import { isDesktopShell } from './lib/pythonBridge';
 import { wireExtensionKeybindings, loadExtensionKeybindings } from './lib/extensionKeybindings';
 import { useBreakpoint } from './lib/useBreakpoint';
+import HomeView from './components/HomeView';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -79,8 +80,8 @@ const App: React.FC = () => {
   const [missionDiffZone, setMissionDiffZone] = useState<{ fileName: string; original: string; proposed: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<
-    'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
-  >('editor');
+    'home' | 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
+  >('home');
   const [problemCounts, setProblemCounts] = useState({ errors: 0, warnings: 0 });
   const [kavoshNavigateUrl, setKavoshNavigateUrl] = useState<string | null>(null);
   const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('fa7_editor_theme') || 'vs-dark');
@@ -443,8 +444,11 @@ const App: React.FC = () => {
           {/* Panel 3: Main Workspace — on a phone only one pane is shown */}
           <main
             className="workspace-container"
-            hidden={isMobile && mobilePane !== 'work'}
-            style={{ flex: 1, display: isMobile && mobilePane !== 'work' ? 'none' : 'flex', background: 'hsl(var(--bg-main))' }}
+            // Home is the content itself, so it must show regardless of which
+            // mobile pane is selected — otherwise both panes hide and the
+            // phone shows a blank screen.
+            hidden={isMobile && viewMode !== 'home' && mobilePane !== 'work'}
+            style={{ flex: 1, display: (isMobile && viewMode !== 'home' && mobilePane !== 'work') ? 'none' : 'flex', background: 'hsl(var(--bg-main))' }}
           >
             <div className="editor-section" style={{ borderRight: 'none', flex: 1 }}>
               <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -455,9 +459,15 @@ const App: React.FC = () => {
                     animate={{ opacity: 1 }}
                     style={{ width: '100%', height: '100%' }}
                   >
+                    {viewMode === 'home' && (
+                      <HomeView
+                        projectName={projectRoot ? projectRoot.split('/').filter(Boolean).pop() : null}
+                        onStart={() => setViewMode('editor')}
+                      />
+                    )}
                     {viewMode === 'editor' && (
-                      <Editor 
-                        content={content} 
+                      <Editor
+                        content={content}
                         fileName={activeFile || ''} 
                         onSave={handleSave}
                         isSaving={isSaving}
@@ -523,7 +533,7 @@ const App: React.FC = () => {
           {/* `display: contents` keeps .ai-panel a direct flex child while still
               letting us hide the pane on mobile WITHOUT unmounting it, so the
               conversation survives toggling between work and chat. */}
-          <div style={{ display: isMobile && mobilePane !== 'chat' ? 'none' : 'contents' }}>
+          <div style={{ display: (viewMode === 'home' || (isMobile && mobilePane !== 'chat')) ? 'none' : 'contents' }}>
           <AIPanel
             activeFile={activeFile}
             currentContent={content}
@@ -551,7 +561,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Phone-only switch between the workspace and the chat. */}
-          {isMobile && (
+          {isMobile && viewMode !== 'home' && (
             <div className="mobile-pane-switch" role="tablist" aria-label="Panel">
               <button
                 role="tab"

@@ -377,10 +377,49 @@ class AgentKernel {
         } catch { return null; }
     }
 
+    /**
+     * Model access policy from the UI (Offline Strict / Cloud Native / Smart
+     * Hybrid / user-selected). The client turns the chosen mode into a concrete
+     * `allowedModels` list; missions must honour it, otherwise picking
+     * "Offline Strict" would still run the agent on a cloud model.
+     */
+    setModelPolicy(allowedModels) {
+        const next = Array.isArray(allowedModels) && allowedModels.length ? allowedModels.map(String) : null;
+        const changed = JSON.stringify(next) !== JSON.stringify(this._allowedModels || null);
+        this._allowedModels = next;
+        if (changed) this.resetHybridModels();
+    }
+
+    _isModelAllowed(name) {
+        const allow = this._allowedModels;
+        if (!Array.isArray(allow) || allow.length === 0) return true;
+        const x = String(name || '').trim();
+        if (!x) return false;
+        return allow.some((a) => {
+            const y = String(a || '').trim();
+            if (!y) return false;
+            return x === y || x.startsWith(y + ':') || y.startsWith(x + ':');
+        });
+    }
+
+    /** Resolve a local model, preferring one the policy actually permits. */
+    async _pickAllowedLocal(preferred) {
+        const name = await this.resolveLocalModelName(preferred);
+        if (this._isModelAllowed(name)) return name;
+        try {
+            const tags = await axios.get(`${this.ollamaUrl}/api/tags`, { timeout: 2500 });
+            const installed = (tags.data?.models || []).map((m) => m.name);
+            const hit = installed.find((m) => this._isModelAllowed(m));
+            if (hit) return hit;
+        } catch { /* fall through */ }
+        return name;
+    }
+
     async getHybridModels() {
         if (this._hybridModels) return this._hybridModels;
         const ollama = (model) => ({ model, baseUrl: this.ollamaUrl, api: 'ollama' });
         const probeCloud = async (m) => {
+            if (!this._isModelAllowed(m)) return false;   // policy (e.g. Offline Strict)
             try {
                 await axios.post(`${this.ollamaUrl}/api/generate`,
                     { model: m, prompt: 'ok', stream: false, options: { num_predict: 1 } },
@@ -400,21 +439,24 @@ class AgentKernel {
         let light = null;
         if (cloudOk && await probeCloud('gpt-oss:20b-cloud')) light = ollama('gpt-oss:20b-cloud');
 
-        // Offline-first fallback: when Ollama Cloud is unavailable, a running
-        // LM Studio server is a fully local, capable backend (OpenAI-compatible).
+        // Offline-first fallback: when Ollama Cloud is unavailable (or barred by
+        // policy), a running LM Studio server is a fully local capable backend.
         if (!heavy || !light) {
             const lms = await this.probeLmStudio();
             if (lms) {
-                const pick = lms.models.find((m) => /coder|code|instruct|qwen|llama|mistral/i.test(m)) || lms.models[0];
-                const desc = { model: pick, baseUrl: lms.baseUrl, api: 'openai' };
-                if (!heavy) heavy = desc;
-                if (!light) light = desc;
-                console.log(`[FA7 OS] LM Studio detected at ${lms.baseUrl} — using "${pick}"`);
+                const permitted = lms.models.filter((m) => this._isModelAllowed(m));
+                const pick = permitted.find((m) => /coder|code|instruct|qwen|llama|mistral/i.test(m)) || permitted[0];
+                if (pick) {
+                    const desc = { model: pick, baseUrl: lms.baseUrl, api: 'openai' };
+                    if (!heavy) heavy = desc;
+                    if (!light) light = desc;
+                    console.log(`[FA7 OS] LM Studio detected at ${lms.baseUrl} — using "${pick}"`);
+                }
             }
         }
 
-        if (!light) light = ollama(await this.resolveLocalModelName('qwen2.5:0.5b'));
-        if (!heavy) heavy = ollama(await this.resolveLocalModelName('deepseek-coder:33b'));
+        if (!light) light = ollama(await this._pickAllowedLocal('qwen2.5:0.5b'));
+        if (!heavy) heavy = ollama(await this._pickAllowedLocal('deepseek-coder:33b'));
         this._hybridModels = { light, heavy, cloudOk };
         console.log(`[FA7 OS] Hybrid models — light: ${light.model} (${light.api}) | heavy: ${heavy.model} (${heavy.api}${cloudOk ? '/cloud' : ''})`);
         return this._hybridModels;

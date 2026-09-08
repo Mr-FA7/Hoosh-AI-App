@@ -3707,6 +3707,10 @@ app.get('/api/ai/system-stats', (req, res) => {
       if (intent === 'mission') {
           try {
               const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
+              // Honour the UI's model access mode (Offline Strict / Cloud Native /
+              // Hybrid / user-selected) inside the mission too — without this the
+              // kernel would happily pick a cloud model in Offline Strict.
+              kernel.setModelPolicy?.(allowedModels);
               await streamMissionLoop(res, lastMessage, {
                   mode: mode || 'agent',
                   modeInstructions: systemPrompt,

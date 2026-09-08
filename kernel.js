@@ -419,6 +419,42 @@ class AgentKernel {
         return name;
     }
 
+    /**
+     * Pick local tiers from whatever is ACTUALLY installed on THIS machine,
+     * ranked against THIS machine's RAM. Deliberately free of hardcoded model
+     * names: Hoosh runs on many different machines with different models, so
+     * assuming a specific model exists (or that ~24GB is typical) is wrong.
+     *
+     * heavy = largest installed model that fits the RAM budget (coder/instruct
+     * preferred only as a tie-break); light = smallest installed model.
+     */
+    async _pickLocalTiers() {
+        let installed = [];
+        try {
+            const tags = await axios.get(`${this.ollamaUrl}/api/tags`, { timeout: 3000 });
+            installed = (tags.data?.models || [])
+                .map((m) => ({ name: String(m.name || ''), size: Number(m.size) || 0 }))
+                .filter((m) => m.name && this._isModelAllowed(m.name));
+        } catch { /* Ollama unreachable */ }
+        if (!installed.length) return { light: null, heavy: null };
+
+        const ramTotalMB = this.resManager?.getHardwareStats?.()?.hardware?.ram?.total || 8192;
+        // Weights are mmap'd, but leave headroom for the OS, the app and KV cache.
+        const budget = ramTotalMB * 1024 * 1024 * 0.6;
+
+        const bySize = [...installed].sort((a, b) => a.size - b.size);
+        const fits = bySize.filter((m) => !m.size || m.size <= budget);
+        const pool = fits.length ? fits : [bySize[0]];       // nothing fits → smallest
+
+        const capable = (m) => /coder|code|instruct|devstral|qwen|llama|mistral|gemma|phi/i.test(m.name);
+        const largest = pool[pool.length - 1];
+        // Among models within 25% of the largest, prefer a coder/instruct one.
+        const topBand = pool.filter((m) => m.size >= largest.size * 0.75);
+        const heavy = (topBand.find(capable) || largest).name;
+        const light = pool[0].name;
+        return { light, heavy };
+    }
+
     async getHybridModels() {
         if (this._hybridModels) return this._hybridModels;
         const ollama = (model) => ({ model, baseUrl: this.ollamaUrl, api: 'ollama' });
@@ -459,6 +495,14 @@ class AgentKernel {
             }
         }
 
+        // Local fallback: discover what this machine actually has installed
+        // rather than assuming any particular model name exists.
+        if (!light || !heavy) {
+            const tiers = await this._pickLocalTiers();
+            if (!light && tiers.light) light = ollama(tiers.light);
+            if (!heavy && tiers.heavy) heavy = ollama(tiers.heavy);
+        }
+        // Last resort if Ollama has nothing installed/reachable.
         if (!light) light = ollama(await this._pickAllowedLocal('qwen2.5:0.5b'));
         if (!heavy) heavy = ollama(await this._pickAllowedLocal('deepseek-coder:33b'));
         this._hybridModels = { light, heavy, cloudOk };

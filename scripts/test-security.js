@@ -216,6 +216,38 @@ check('manifest: secrets => elevated', validateManifest({ ...goodManifest, permi
     try { fs.rmSync(proj, { recursive: true, force: true }); fs.rmSync(outside, { force: true }); } catch { /* ignore */ }
   }
 
+  // ── Native tool calling: schemas + provider normalisation ─────────────────
+  {
+    const { AGENT_TOOL_SCHEMAS, buildToolsPayload, normalizeToolCall } =
+      require(path.join(ROOT, 'lib/agentToolSchemas'));
+
+    const names = AGENT_TOOL_SCHEMAS.map((t) => t.name);
+    check('tool schemas cover the core coding tools',
+      ['readFile', 'writeFile', 'patchFile', 'glob', 'grep', 'executeCommand'].every((n) => names.includes(n)));
+    check('every schema has an object parameter spec',
+      AGENT_TOOL_SCHEMAS.every((t) => t.parameters && t.parameters.type === 'object' && t.parameters.properties));
+    check('writeFile requires path and content',
+      AGENT_TOOL_SCHEMAS.find((t) => t.name === 'writeFile').parameters.required.join() === 'path,content');
+
+    const payload = buildToolsPayload();
+    check('payload uses the function envelope both providers expect',
+      payload.length === AGENT_TOOL_SCHEMAS.length &&
+      payload.every((t) => t.type === 'function' && t.function.name && t.function.parameters));
+    check('payload can be filtered to a subset',
+      buildToolsPayload(['grep']).length === 1);
+
+    // Ollama hands back an object; OpenAI hands back a JSON string.
+    check('normalises Ollama-style object arguments',
+      JSON.stringify(normalizeToolCall({ function: { name: 'writeFile', arguments: { path: 'a.txt', content: 'x' } } }))
+        === JSON.stringify({ name: 'writeFile', args: { path: 'a.txt', content: 'x' } }));
+    check('normalises OpenAI-style string arguments',
+      normalizeToolCall({ function: { name: 'grep', arguments: '{"pattern":"foo"}' } }).args.pattern === 'foo');
+    check('malformed arguments return null instead of throwing',
+      normalizeToolCall({ function: { name: 'x', arguments: '{oops' } }) === null);
+    check('a call with no name is rejected',
+      normalizeToolCall({ function: { arguments: {} } }) === null);
+  }
+
   console.log(`\nResults: ${pass} passed, ${fail} failed (${pass + fail} total)`);
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
   process.exit(fail ? 1 : 0);

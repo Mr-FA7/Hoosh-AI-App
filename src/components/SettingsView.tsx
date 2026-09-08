@@ -5,6 +5,8 @@ import { API_BASE } from '../apiBase';
 import { useI18n } from '../i18n/LocaleContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import AgentSettingsPanel from './settings/AgentSettingsPanel';
+import AccountActions from './settings/AccountActions';
+import { useAuth } from '../auth/AuthContext';
 import { BUILTIN_THEMES, applyExtensionTheme } from '../lib/themeApply';
 
 interface SettingsViewProps {
@@ -31,6 +33,7 @@ const InfoRow = ({ label, value, active = false }: { label: string; value: React
 
 const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', onThemeChange }) => {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [hw, setHw] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [projectRoot, setProjectRoot] = useState('');
@@ -344,8 +347,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
       </SettingSection>
 
       <SettingSection title={t('settings.account')} icon={User}>
-        <InfoRow label={t('settings.user')} value={t('settings.profileLocal')} />
+        <InfoRow label={t('auth.signedInAs')} value={user?.email || t('settings.profileLocal')} active={!!user} />
         <InfoRow label={t('settings.license')} value={t('settings.licenseFree')} />
+        <AccountActions />
       </SettingSection>
 
       <SettingSection title={t('settings.github')} icon={User}>

@@ -179,6 +179,7 @@
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "firebase": "^12.18.0",
     "framer-motion": "^12.38.0",
     "fs-extra": "^11.3.4",
     "lucide-react": "^1.6.0",

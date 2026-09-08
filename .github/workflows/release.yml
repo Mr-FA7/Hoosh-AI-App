@@ -1,0 +1,55 @@
+name: Build desktop installers
+
+# Native modules (node-pty) cannot be cross-compiled, so each OS builds on its
+# own runner. Produces: macOS .dmg/.zip, Windows .exe (NSIS + portable),
+# Linux .AppImage/.deb.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type-check and build web assets
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Package desktop app
+        run: npx electron-builder --publish never -c.npmRebuild=false
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoosh-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist_electron/*.dmg
+            dist_electron/*.zip
+            dist_electron/*.exe
+            dist_electron/*.AppImage
+            dist_electron/*.deb

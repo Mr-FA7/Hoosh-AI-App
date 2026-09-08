@@ -19,6 +19,9 @@
     "preview": "vite preview",
     "electron:start": "concurrently -n app,electron -c green,magenta \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder -c.npmRebuild=false",
+    "electron:build:mac": "npm run build && electron-builder --mac -c.npmRebuild=false",
+    "electron:build:win": "npm run build && electron-builder --win -c.npmRebuild=false",
+    "electron:build:linux": "npm run build && electron-builder --linux -c.npmRebuild=false",
     "hoosh-cli": "node scripts/hoosh-cli.js",
     "test": "node scripts/test-security.js",
     "test:security": "node scripts/test-security.js",
@@ -40,7 +43,73 @@
       "icon": "assets/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Hoosh AI"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Development",
+      "maintainer": "FA7 Labs LTD <FA7_230@yahoo.com>",
+      "synopsis": "Local-first AI software engineering environment",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "FA7 OS"
+        }
+      },
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "files": [

@@ -367,8 +367,19 @@ class AgentKernel {
      * Both are reached through this.ollamaUrl — managed Ollama serves local and
      * "-cloud" models on the same endpoint, so no API key wiring is needed.
      */
+    /** LM Studio (and any OpenAI-compatible local server) model discovery. */
+    async probeLmStudio() {
+        const base = String(process.env.LMSTUDIO_BASE_URL || 'http://127.0.0.1:1234/v1').replace(/\/$/, '');
+        try {
+            const r = await axios.get(`${base}/models`, { timeout: 2500 });
+            const ids = (r.data?.data || []).map((m) => m.id).filter(Boolean);
+            return ids.length ? { baseUrl: base, models: ids } : null;
+        } catch { return null; }
+    }
+
     async getHybridModels() {
         if (this._hybridModels) return this._hybridModels;
+        const ollama = (model) => ({ model, baseUrl: this.ollamaUrl, api: 'ollama' });
         const probeCloud = async (m) => {
             try {
                 await axios.post(`${this.ollamaUrl}/api/generate`,
@@ -380,18 +391,32 @@ class AgentKernel {
         // Heavy: capable cloud model for planning/coding/tool-calls.
         let heavy = null;
         for (const m of ['gpt-oss:120b-cloud', 'gpt-oss:20b-cloud', 'qwen3-coder:480b-cloud']) {
-            if (await probeCloud(m)) { heavy = m; break; }
+            if (await probeCloud(m)) { heavy = ollama(m); break; }
         }
         const cloudOk = !!heavy;
         // Light: cheap steps (parallel research reads). A fast CLOUD model is
         // preferred even here — it has zero local RAM pressure and, unlike the
         // 0.5b local model, is reliable enough to not hang the research phase.
-        let light;
-        if (cloudOk && await probeCloud('gpt-oss:20b-cloud')) light = 'gpt-oss:20b-cloud';
-        else light = await this.resolveLocalModelName('qwen2.5:0.5b');
-        if (!heavy) heavy = await this.resolveLocalModelName('deepseek-coder:33b');
+        let light = null;
+        if (cloudOk && await probeCloud('gpt-oss:20b-cloud')) light = ollama('gpt-oss:20b-cloud');
+
+        // Offline-first fallback: when Ollama Cloud is unavailable, a running
+        // LM Studio server is a fully local, capable backend (OpenAI-compatible).
+        if (!heavy || !light) {
+            const lms = await this.probeLmStudio();
+            if (lms) {
+                const pick = lms.models.find((m) => /coder|code|instruct|qwen|llama|mistral/i.test(m)) || lms.models[0];
+                const desc = { model: pick, baseUrl: lms.baseUrl, api: 'openai' };
+                if (!heavy) heavy = desc;
+                if (!light) light = desc;
+                console.log(`[FA7 OS] LM Studio detected at ${lms.baseUrl} — using "${pick}"`);
+            }
+        }
+
+        if (!light) light = ollama(await this.resolveLocalModelName('qwen2.5:0.5b'));
+        if (!heavy) heavy = ollama(await this.resolveLocalModelName('deepseek-coder:33b'));
         this._hybridModels = { light, heavy, cloudOk };
-        console.log(`[FA7 OS] Hybrid models — light: ${light} | heavy${cloudOk ? '(cloud)' : '(local)'}: ${heavy}`);
+        console.log(`[FA7 OS] Hybrid models — light: ${light.model} (${light.api}) | heavy: ${heavy.model} (${heavy.api}${cloudOk ? '/cloud' : ''})`);
         return this._hybridModels;
     }
 
@@ -938,8 +963,10 @@ class AgentKernel {
         // Ollama when available, else best local). Same endpoint serves both.
         const hybrid = await this.getHybridModels();
         const useLight = context.tier === 'light';
-        let selectedModel = useLight ? hybrid.light : hybrid.heavy;
-        let targetUrl = this.ollamaUrl;
+        const pick = useLight ? hybrid.light : hybrid.heavy;
+        let selectedModel = pick.model;
+        let targetUrl = pick.baseUrl;
+        let modelApi = pick.api;               // 'ollama' | 'openai' (LM Studio et al.)
         const headers = {};
 
         // Legacy explicit cloud routing via ollama.com — only when the managed
@@ -948,6 +975,7 @@ class AgentKernel {
             targetUrl = 'https://ollama.com';
             headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
             selectedModel = routingDecision.selected_model || 'gpt-oss:120b-cloud';
+            modelApi = 'ollama';
         }
 
         const systemPrompts = {
@@ -960,10 +988,48 @@ class AgentKernel {
             devops_engineer: this.buildSystemPrompt('DevOps Engineer', 'Handle builds and packaging.')
         };
 
-        const execute = async (p) => {
+        const systemPrompt = systemPrompts[agentType] || this.buildSystemPrompt('FA7 Agent');
+
+        // OpenAI-compatible backends (LM Studio, llama.cpp server, …).
+        const executeOpenAiCompatible = async (p) => {
+            const response = await axios.post(`${targetUrl}/chat/completions`, {
+                model: selectedModel,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: p }
+                ],
+                stream: !!onToken
+            }, { headers, responseType: !!onToken ? 'stream' : 'json' });
+
+            if (!onToken) return response.data?.choices?.[0]?.message?.content || '';
+
+            let full = '';
+            let buf = '';
+            return new Promise((resolve, reject) => {
+                response.data.on('data', (c) => {
+                    buf += c.toString();
+                    const lines = buf.split('\n');
+                    buf = lines.pop() || '';
+                    for (const line of lines) {
+                        const t = line.trim();
+                        if (!t.startsWith('data:')) continue;
+                        const payload = t.slice(5).trim();
+                        if (payload === '[DONE]') { resolve(full); return; }
+                        try {
+                            const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+                            if (delta) { full += delta; onToken(delta); }
+                        } catch { /* partial chunk */ }
+                    }
+                });
+                response.data.on('end', () => resolve(full));
+                response.data.on('error', reject);
+            });
+        };
+
+        const executeOllama = async (p) => {
             const response = await axios.post(`${targetUrl}/api/generate`, {
                 model: selectedModel,
-                system: systemPrompts[agentType] || this.buildSystemPrompt('FA7 Agent'),
+                system: systemPrompt,
                 prompt: p,
                 stream: !!onToken,
                 options: { num_ctx: routingDecision.allocated_context_window || 4096 }
@@ -986,6 +1052,9 @@ class AgentKernel {
             }
             return response.data.response;
         };
+
+        const execute = async (p) =>
+            modelApi === 'openai' ? executeOpenAiCompatible(p) : executeOllama(p);
 
         // 👁️ Visual Logic: Negah Agent Loop
         if (agentType === 'negah') {

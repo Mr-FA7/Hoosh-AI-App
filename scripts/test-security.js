@@ -156,6 +156,30 @@ check('manifest: secrets => elevated', validateManifest({ ...goodManifest, permi
   const ev = await evaluateSkill(s.dir, s.manifest);
   check('eval: python-expert verified', ev.verified === true && ev.total >= 3);
 
+  // ── Autonomous missions must not become a blanket approval bypass ──────────
+  // Missions auto-approve so they don't hang on a prompt nobody answers, but
+  // they must NOT set `yolo` (which short-circuits needsApproval and would
+  // discard the command allowlist + protected git subcommands).
+  {
+    const AgentKernel = require(path.join(ROOT, 'kernel.js'));
+    const mgr2 = new ToolApprovalManager();
+    const k = new AgentKernel(ROOT, 'http://127.0.0.1:11434', null);
+    k.approvalManager = mgr2;
+    const snapshot = JSON.stringify(mgr2.config.autoApprove);
+
+    k.setAutonomousExecution(true);
+    const needs = (cmd) => mgr2.needsApproval('executeCommand', { command: cmd });
+    check('autonomous: file writes auto-approve', mgr2.needsApproval('writeFile', { path: 'a.txt' }) === false);
+    check('autonomous: allowlisted dev command auto-approves', needs('npm install') === false);
+    check('autonomous: rm still requires approval', needs('rm -rf /') === true);
+    check('autonomous: git push still requires approval', needs('git push') === true);
+    check('autonomous: curl still requires approval', needs('curl http://evil.com') === true);
+    check('autonomous: never enables yolo', mgr2.config.yolo === false);
+
+    k.setAutonomousExecution(false);
+    check('autonomous: approval config restored afterwards', JSON.stringify(mgr2.config.autoApprove) === snapshot);
+  }
+
   console.log(`\nResults: ${pass} passed, ${fail} failed (${pass + fail} total)`);
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
   process.exit(fail ? 1 : 0);

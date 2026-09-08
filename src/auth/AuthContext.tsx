@@ -55,11 +55,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setInitializing(false);
-    }, () => setInitializing(false));
-    return unsub;
+    // Safety net: if Firebase never reports a state (blocked storage, broken
+    // network stack, restricted Electron context) the app must not sit on a
+    // blank splash forever — fall through to the sign-in screen instead.
+    const timeout = window.setTimeout(() => setInitializing(false), 8000);
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => {
+        window.clearTimeout(timeout);
+        setUser(u);
+        setInitializing(false);
+      },
+      () => {
+        window.clearTimeout(timeout);
+        setInitializing(false);
+      }
+    );
+    return () => {
+      window.clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, displayName?: string) => {

@@ -128,15 +128,24 @@ class AgentKernel {
         if (on) {
             this._prevDefer = this.deferWrites;
             this.deferWrites = false;
-            // Toggle in-memory only (do not persist yolo to disk).
-            if (this.approvalManager?.config) {
-                this._prevYolo = this.approvalManager.config.yolo;
-                this.approvalManager.config.yolo = true;
+            // Auto-approve by CATEGORY, never via `yolo`. `yolo` short-circuits
+            // needsApproval() entirely, which would also discard the command
+            // allowlist and the protected git subcommands (push/reset/clean/
+            // rebase/remote). Writes are safe to auto-approve because
+            // executeTool confines them to the project root; terminal commands
+            // still pass through the allowlist, so rm/curl/git push keep asking.
+            const cfg = this.approvalManager?.config;
+            if (cfg?.autoApprove) {
+                this._prevAutoApprove = { ...cfg.autoApprove };
+                cfg.autoApprove.write = true;
+                cfg.autoApprove.terminal = true;
             }
         } else {
             if (this._prevDefer !== undefined) this.deferWrites = this._prevDefer;
-            if (this.approvalManager?.config && this._prevYolo !== undefined) {
-                this.approvalManager.config.yolo = this._prevYolo;
+            const cfg = this.approvalManager?.config;
+            if (cfg?.autoApprove && this._prevAutoApprove) {
+                cfg.autoApprove = { ...this._prevAutoApprove };
+                this._prevAutoApprove = null;
             }
         }
     }

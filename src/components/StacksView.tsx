@@ -222,6 +222,9 @@ const StacksView: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
         <Layers size={22} color="#60a5fa" />
         <h2 style={{ margin: 0, fontSize: '18px' }}>{t('stacks.title')}</h2>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'hsl(var(--text-secondary))' }}>
+          {t('stacks.aiHint')}
+        </p>
         <button type="button" style={{ ...btn(), marginLeft: 'auto' }} onClick={() => void refresh()} disabled={!!busy}>
           <RefreshCw size={14} /> {t('stacks.refresh')}
         </button>

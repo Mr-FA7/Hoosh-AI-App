@@ -46,6 +46,9 @@ const { CheckpointManager } = require('./lib/checkpointManager');
 const { LlmGateway } = require('./lib/llmGateway');
 const { ToolApprovalManager } = require('./lib/toolApproval');
 const { ensureHttpToolAllowed } = require('./lib/httpPermissionGate');
+const { createDeviceAuth, resolveBindHost, isLoopbackAddress } = require('./lib/deviceAuth');
+const { applyPreset, describeCurrent } = require('./lib/permissionPresets');
+const { HooshCoreStore } = require('./lib/hooshCoreStore');
 const auditLog = require('./lib/auditLog');
 const { SkillManager } = require('./lib/skillManager');
 const { evaluateSkill } = require('./lib/skillEval');
@@ -221,11 +224,194 @@ async function main() {
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers',
-      req.headers['access-control-request-headers'] || 'Content-Type,Authorization,X-Requested-With');
+      req.headers['access-control-request-headers'] ||
+      'Content-Type,Authorization,X-Requested-With,X-Hoosh-Device-Token,X-Hoosh-Runtime-Token');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
   app.use(bodyParser.json({ limit: '5mb' }));
+
+  const coreStore = new HooshCoreStore();
+  try { coreStore.open(); } catch (e) { console.warn('[HooshCoreStore]', e.message); }
+
+  const deviceAuth = createDeviceAuth({
+    onPaired: ({ deviceId, sessionId, capabilities }) => {
+      try {
+        coreStore.upsertDevice({
+          id: deviceId,
+          name: deviceAuth.state.name,
+          os: process.platform,
+          runtimeVersion: deviceAuth.RUNTIME_VERSION,
+          pairedAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
+          capabilities,
+          status: 'online'
+        });
+        coreStore.upsertRuntimeSession({
+          id: sessionId,
+          deviceId,
+          label: 'Control Plane',
+          clientName: 'web',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          lastSeenAt: new Date().toISOString()
+        });
+        coreStore.insertEvent({
+          id: require('crypto').randomUUID(),
+          type: 'device.paired',
+          at: new Date().toISOString(),
+          deviceId,
+          payload: { sessionId }
+        });
+      } catch (e) {
+        console.warn('[pair]', e.message);
+      }
+    }
+  });
+  // Seed this machine into devices table
+  try {
+    coreStore.upsertDevice({
+      id: deviceAuth.state.deviceId,
+      name: deviceAuth.state.name,
+      os: process.platform,
+      runtimeVersion: deviceAuth.RUNTIME_VERSION,
+      pairedAt: deviceAuth.state.pairedAt || deviceAuth.state.createdAt,
+      lastSeenAt: new Date().toISOString(),
+      capabilities: deviceAuth.defaultCapabilities(),
+      status: 'online'
+    });
+  } catch { /* ignore */ }
+  app.use(deviceAuth.middleware);
+
+  app.get('/api/v3/runtime/health', (_req, res) => {
+    res.json({
+      ok: true,
+      runtime: 'hoosh-local',
+      version: deviceAuth.RUNTIME_VERSION,
+      apiVersion: deviceAuth.API_VERSION,
+      authRequired: deviceAuth.authEnabled,
+      bindHost: deviceAuth.bindHost,
+      deviceId: deviceAuth.state.deviceId,
+      deviceName: deviceAuth.state.name,
+      capabilities: deviceAuth.defaultCapabilities()
+    });
+  });
+
+  app.get('/api/v3/runtime/bootstrap', (req, res) => {
+    if (!isLoopbackAddress(req.socket?.remoteAddress) && deviceAuth.authEnabled) {
+      return res.status(403).json({ ok: false, error: 'bootstrap_loopback_only' });
+    }
+    res.json({ ok: true, ...deviceAuth.bootstrapPayload(PORT) });
+  });
+
+  app.get('/api/v3/runtime/capabilities', (_req, res) => {
+    res.json({ ok: true, capabilities: deviceAuth.defaultCapabilities(), apiVersion: deviceAuth.API_VERSION });
+  });
+
+  app.post('/api/v3/runtime/pair/start', (req, res) => {
+    if (!isLoopbackAddress(req.socket?.remoteAddress) && deviceAuth.authEnabled) {
+      return res.status(403).json({ ok: false, error: 'pair_start_loopback_only' });
+    }
+    res.json(deviceAuth.createPairingCode());
+  });
+
+  app.get('/api/v3/runtime/pair/status', (_req, res) => {
+    res.json(deviceAuth.getPairingStatus());
+  });
+
+  app.post('/api/v3/runtime/pair/confirm', (req, res) => {
+    const result = deviceAuth.confirmPairing(req.body?.code, {
+      label: req.body?.label,
+      clientName: req.body?.clientName || 'web'
+    });
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  });
+
+  app.get('/api/v3/runtime/sessions', (_req, res) => {
+    res.json({ ok: true, sessions: deviceAuth.listSessions() });
+  });
+
+  app.post('/api/v3/runtime/sessions/revoke', (req, res) => {
+    const id = String(req.body?.sessionId || '').trim();
+    if (!id) return res.status(400).json({ ok: false, error: 'sessionId_required' });
+    res.json(deviceAuth.revokeSession(id));
+  });
+
+  app.post('/api/v3/runtime/revoke', (req, res) => {
+    const rotate = req.body?.rotate !== false;
+    deviceAuth.revokeAllSessions();
+    const out = rotate ? deviceAuth.rotateDeviceToken() : { ok: true };
+    try {
+      coreStore.insertEvent({
+        id: require('crypto').randomUUID(),
+        type: 'device.revoked',
+        at: new Date().toISOString(),
+        deviceId: deviceAuth.state.deviceId,
+        payload: { rotate }
+      });
+    } catch { /* ignore */ }
+    res.json(out);
+  });
+
+  app.get('/api/v3/runtime/devices', (_req, res) => {
+    const fromStore = coreStore.listDevices();
+    const local = {
+      id: deviceAuth.state.deviceId,
+      name: deviceAuth.state.name,
+      os: process.platform,
+      runtime_version: deviceAuth.RUNTIME_VERSION,
+      status: 'online',
+      capabilities: deviceAuth.defaultCapabilities(),
+      sessions: deviceAuth.listSessions()
+    };
+    res.json({
+      ok: true,
+      devices: fromStore.length ? fromStore.map((d) => ({
+        ...d,
+        capabilities: (() => { try { return JSON.parse(d.capabilities_json || '{}'); } catch { return {}; } })(),
+        sessions: d.id === local.id ? local.sessions : []
+      })) : [local]
+    });
+  });
+
+  app.patch('/api/v3/runtime/device', (req, res) => {
+    if (req.body?.name) {
+      const r = deviceAuth.setDeviceName(req.body.name);
+      if (!r.ok) return res.status(400).json(r);
+      try {
+        coreStore.upsertDevice({
+          id: deviceAuth.state.deviceId,
+          name: deviceAuth.state.name,
+          os: process.platform,
+          runtimeVersion: deviceAuth.RUNTIME_VERSION,
+          lastSeenAt: new Date().toISOString(),
+          capabilities: deviceAuth.defaultCapabilities(),
+          status: 'online'
+        });
+      } catch { /* ignore */ }
+      return res.json(r);
+    }
+    res.status(400).json({ ok: false, error: 'nothing_to_update' });
+  });
+
+  app.get('/api/v3/runtime/doctor', async (_req, res) => {
+    const checks = [];
+    const push = (id, ok, detail) => checks.push({ id, ok: !!ok, detail: detail || '' });
+    push('runtime', true, `v${deviceAuth.RUNTIME_VERSION}`);
+    push('bind', deviceAuth.bindHost === '127.0.0.1' || deviceAuth.bindHost === '::1', `bind=${deviceAuth.bindHost}`);
+    push('device_auth', true, deviceAuth.authEnabled ? 'enabled' : 'disabled via FA7_DEVICE_AUTH');
+    push('core_sqlite', coreStore.available(), coreStore.available() ? 'node:sqlite ready' : 'node:sqlite unavailable');
+    push('sessions', true, `${deviceAuth.listSessions().length} active`);
+    try {
+      const ollamaBase = companionOllama.getActiveOllamaBase();
+      push('ollama', !!ollamaBase, ollamaBase || 'not configured');
+    } catch (e) {
+      push('ollama', false, e.message);
+    }
+    push('project', !!currentProjectRoot, currentProjectRoot || 'none');
+    res.json({ ok: checks.every((c) => c.ok || c.id === 'project'), checks });
+  });
 
   mountStudioRoutes(app, { getActiveProjectRoot: () => currentProjectRoot });
   mountOllamaPullRoutes(app);
@@ -280,8 +466,29 @@ async function main() {
   const llmGateway = new LlmGateway(() => ollamaHttp());
   mountFccProxyRoutes(app, () => llmGateway);
   kernel.setLlmGateway(llmGateway);
+  if (kernel.setCoreStore) kernel.setCoreStore(coreStore);
   const toolApproval = new ToolApprovalManager();
   const skillManager = new SkillManager({ projectRoot: currentProjectRoot });
+
+  app.get('/api/v3/permission/preset', (_req, res) => {
+    res.json({ ok: true, ...describeCurrent(toolApproval) });
+  });
+
+  app.post('/api/v3/permission/preset', (req, res) => {
+    const id = String(req.body?.preset || req.body?.id || '').trim();
+    const result = applyPreset(toolApproval, id);
+    if (!result.ok) return res.status(400).json(result);
+    try {
+      coreStore.insertEvent({
+        id: require('crypto').randomUUID(),
+        type: 'permission.preset_changed',
+        at: new Date().toISOString(),
+        deviceId: deviceAuth.state.deviceId,
+        payload: { preset: result.preset, sandbox: result.sandbox, approval: result.approval }
+      });
+    } catch { /* ignore */ }
+    res.json(result);
+  });
 
   // Build active Skills' system-prompt block and push it into the kernel (S1).
   async function refreshSkillPrompts() {
@@ -3015,6 +3222,142 @@ app.get('/api/ai/system-stats', (req, res) => {
     res.json(gitWorkspace.commit(currentProjectRoot, req.body?.message));
   });
 
+  app.post('/api/v3/git/pull', (_req, res) => {
+    res.json(gitWorkspace.pull(currentProjectRoot));
+  });
+
+  app.post('/api/v3/git/push', (_req, res) => {
+    res.json(gitWorkspace.push(currentProjectRoot));
+  });
+
+  app.get('/api/v3/agent-runs', (_req, res) => {
+    const limit = Math.min(100, Number(_req.query.limit) || 30);
+    res.json({ ok: true, runs: coreStore.listAgentRuns(limit) });
+  });
+
+  app.get('/api/v3/tasks', (_req, res) => {
+    res.json({ ok: true, tasks: coreStore.listTasks(Number(_req.query.limit) || 50) });
+  });
+
+  app.post('/api/v3/tasks', (req, res) => {
+    const id = require('crypto').randomUUID();
+    const now = new Date().toISOString();
+    const task = {
+      id,
+      title: String(req.body?.title || 'Untitled task').slice(0, 200),
+      status: String(req.body?.status || 'pending'),
+      runId: req.body?.runId || null,
+      roomId: req.body?.roomId || null,
+      assigneeAgentId: req.body?.assigneeAgentId || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    coreStore.upsertTask(task);
+    res.json({ ok: true, task });
+  });
+
+  app.patch('/api/v3/tasks/:id', (req, res) => {
+    const existing = coreStore.listTasks(200).find((t) => t.id === req.params.id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'not_found' });
+    const task = {
+      id: existing.id,
+      title: req.body?.title ?? existing.title,
+      status: req.body?.status ?? existing.status,
+      runId: existing.run_id,
+      roomId: existing.room_id,
+      assigneeAgentId: req.body?.assigneeAgentId ?? existing.assignee_agent_id,
+      createdAt: existing.created_at,
+      updatedAt: new Date().toISOString()
+    };
+    coreStore.upsertTask(task);
+    res.json({ ok: true, task });
+  });
+
+  app.get('/api/v3/rooms', (_req, res) => {
+    res.json({ ok: true, rooms: coreStore.listRooms() });
+  });
+
+  app.post('/api/v3/rooms', (req, res) => {
+    const id = require('crypto').randomUUID();
+    const room = {
+      id,
+      name: String(req.body?.name || 'Room').slice(0, 120),
+      mode: String(req.body?.mode || 'sequential'),
+      agentIds: Array.isArray(req.body?.agentIds) ? req.body.agentIds : [],
+      objective: req.body?.objective || '',
+      deviceId: deviceAuth.state.deviceId
+    };
+    coreStore.upsertRoom(room);
+    res.json({ ok: true, room });
+  });
+
+  app.get('/api/v3/rooms/:id/messages', (req, res) => {
+    res.json({ ok: true, messages: coreStore.listRoomMessages(req.params.id) });
+  });
+
+  app.post('/api/v3/rooms/:id/messages', (req, res) => {
+    const msg = {
+      id: require('crypto').randomUUID(),
+      roomId: req.params.id,
+      kind: String(req.body?.kind || 'status'),
+      fromAgentId: req.body?.fromAgentId || null,
+      toAgentId: req.body?.toAgentId || null,
+      body: String(req.body?.body || ''),
+      at: new Date().toISOString()
+    };
+    coreStore.insertRoomMessage(msg);
+    res.json({ ok: true, message: msg });
+  });
+
+  app.get('/api/v3/artifacts', (_req, res) => {
+    res.json({ ok: true, artifacts: coreStore.listArtifacts(Number(_req.query.limit) || 50) });
+  });
+
+  app.post('/api/v3/artifacts', (req, res) => {
+    const art = {
+      id: require('crypto').randomUUID(),
+      kind: String(req.body?.kind || 'file'),
+      title: String(req.body?.title || 'Artifact').slice(0, 200),
+      path: req.body?.path || null,
+      runId: req.body?.runId || null,
+      createdAt: new Date().toISOString()
+    };
+    coreStore.upsertArtifact(art);
+    res.json({ ok: true, artifact: art });
+  });
+
+  app.get('/api/v3/tools/registry', async (_req, res) => {
+    let mcp = [];
+    try { mcp = mcpManager?.listTools?.() || mcpManager?.getTools?.() || []; } catch { /* ignore */ }
+    let skills = [];
+    try {
+      skills = (await skillManager.listInstalled?.()) || (await skillManager.catalog?.()) || [];
+    } catch { /* ignore */ }
+    const native = [
+      'readFile', 'writeFile', 'patchFile', 'glob', 'grep', 'executeCommand',
+      'webSearch', 'gitStatus', 'browserAgent'
+    ];
+    res.json({
+      ok: true,
+      origins: {
+        native: { count: native.length, items: native.map((n) => ({ name: n, origin: 'native' })) },
+        mcp: { count: Array.isArray(mcp) ? mcp.length : 0, items: (Array.isArray(mcp) ? mcp : []).slice(0, 100) },
+        skill: { count: Array.isArray(skills) ? skills.length : 0, items: (Array.isArray(skills) ? skills : []).slice(0, 100) },
+        extension: { count: 0, items: [] }
+      }
+    });
+  });
+
+  app.get('/api/v3/negah/status', (_req, res) => {
+    const caps = deviceAuth.defaultCapabilities();
+    res.json({
+      ok: true,
+      platform: process.platform,
+      computerUse: !!caps.computerUse || process.platform === 'darwin',
+      supported: process.platform === 'darwin'
+    });
+  });
+
   app.get('/api/v3/rules/list', async (req, res) => {
     if (!currentProjectRoot) return res.json({ rules: [] });
     res.json({ rules: await loadRules(currentProjectRoot) });
@@ -4789,8 +5132,13 @@ app.get('/api/ai/system-stats', (req, res) => {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`FA7 OS companion on http://localhost:${PORT}`);
+  const bindHost = resolveBindHost();
+  if (bindHost === '0.0.0.0' || bindHost === '::') {
+    console.warn('[FA7 OS] WARNING: Runtime bound on all interfaces — set FA7_BIND=127.0.0.1 for Architecture v2 default');
+  }
+  app.listen(PORT, bindHost, () => {
+    console.log(`Hoosh Runtime (companion) on http://${bindHost === '0.0.0.0' ? 'localhost' : bindHost}:${PORT}`);
+    console.log(`Device ${deviceAuth.state.deviceId} · auth=${deviceAuth.authEnabled ? 'on' : 'off'} · bind=${bindHost}`);
     console.log(`Project Root: ${currentProjectRoot || '(none — select a project in the UI)'}`);
   });
 

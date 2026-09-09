@@ -5,7 +5,6 @@ import FileExplorer from './components/FileExplorer';
 import Editor from './components/Editor';
 import AIPanel from './components/AIPanel';
 import ProposalUI from './components/ProposalUI';
-import EngineView from './components/EngineView';
 import TerminalView from './components/TerminalView';
 import BrowserView from './components/BrowserView';
 import ActivePreviewView from './components/ActivePreviewView';
@@ -34,6 +33,14 @@ import { wireExtensionKeybindings, loadExtensionKeybindings } from './lib/extens
 import { useBreakpoint } from './lib/useBreakpoint';
 import HomeView from './components/HomeView';
 import CommandPalette from './components/CommandPalette';
+import ComputersView from './components/ComputersView';
+import ConnectionsView from './components/ConnectionsView';
+import ModelHubView from './components/ModelHubView';
+import ToolsView from './components/ToolsView';
+import TasksView from './components/TasksView';
+import RoomsView from './components/RoomsView';
+import ArtifactsView from './components/ArtifactsView';
+import ComputerUseView from './components/ComputerUseView';
 import type { ViewMode } from './shell/viewCatalog';
 import { readActiveModel, subscribeActiveModel, type ActiveModelInfo } from './lib/activeModelBridge';
 
@@ -492,6 +499,7 @@ const App: React.FC = () => {
                       <HomeView
                         projectName={projectRoot ? projectRoot.split('/').filter(Boolean).pop() : null}
                         onStart={() => setViewMode('editor')}
+                        onOpenModels={() => setViewMode('engine')}
                       />
                     )}
                     {viewMode === 'editor' && (
@@ -517,7 +525,14 @@ const App: React.FC = () => {
                         onClearMissionDiffZone={() => setMissionDiffZone(null)}
                       />
                     )}
-                    {viewMode === 'engine' && <EngineView />}
+                    {viewMode === 'engine' && <ModelHubView />}
+                    {viewMode === 'computers' && <ComputersView />}
+                    {viewMode === 'connections' && <ConnectionsView />}
+                    {viewMode === 'tools' && <ToolsView />}
+                    {viewMode === 'tasks' && <TasksView />}
+                    {viewMode === 'rooms' && <RoomsView />}
+                    {viewMode === 'artifacts' && <ArtifactsView />}
+                    {viewMode === 'computerUse' && <ComputerUseView />}
                     {viewMode === 'terminal' && <TerminalView />}
                     {viewMode === 'vmlab' && <VmLabView />}
                     {viewMode === 'stacks' && <StacksView />}

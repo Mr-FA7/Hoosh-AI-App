@@ -1,0 +1,14 @@
+# Example Hoosh Dev Profile
+# Copy to your project as hoosh.dev.yaml and adjust.
+
+name: example-app
+runtime: node
+node: "20"
+packageManager: npm
+services:
+  - name: app
+    command: npm run dev
+    port: 5173
+docker:
+  compose: docker-compose.yml
+  preferSandbox: true

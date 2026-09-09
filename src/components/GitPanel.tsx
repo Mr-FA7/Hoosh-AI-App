@@ -77,8 +77,10 @@ const GitPanel: React.FC = () => {
             ))}
             {status.clean && <p style={{ color: '#666', fontSize: '12px' }}>{t('git.clean')}</p>}
           </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
             <button type="button" onClick={handleStageAll} disabled={busy || status.clean} style={primaryBtn}>{t('git.stageAll')}</button>
+            <button type="button" onClick={async () => { setBusy(true); await axios.post(`${API_BASE}/v3/git/pull`); await refresh(); setBusy(false); }} disabled={busy} style={primaryBtn}>{t('git.pull')}</button>
+            <button type="button" onClick={async () => { setBusy(true); await axios.post(`${API_BASE}/v3/git/push`); await refresh(); setBusy(false); }} disabled={busy} style={primaryBtn}>{t('git.push')}</button>
           </div>
           <input value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} placeholder={t('git.commitMessage')}
             style={{ ...inputStyle, marginTop: '12px' }} />

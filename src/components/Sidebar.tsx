@@ -5,12 +5,14 @@ import { useI18n } from '../i18n/LocaleContext';
 import {
   ADVANCED_VIEWS,
   BUILD_VIEWS,
+  HOME_VIEW,
   PRIMARY_VIEWS,
   SECONDARY_IDS,
-  SETTINGS_VIEW,
+  isWorkspaceView,
   type ViewEntry,
   type ViewMode
 } from '../shell/viewCatalog';
+import AccountMenu from './AccountMenu';
 import './Sidebar.css';
 
 export type { ViewMode };
@@ -32,34 +34,56 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
   const item = (tab: ViewEntry) => {
     const Icon = tab.Icon;
     const agent = tab.audience === 'agent';
-    const title = agent ? `${t(tab.labelKey)} — ${t('palette.agentHint')}` : t(tab.labelKey);
+    const workspace = tab.id === 'editor';
+    const active = workspace ? isWorkspaceView(viewMode) : viewMode === tab.id;
+    const title = workspace
+      ? t('sidebar.workspace')
+      : agent
+        ? `${t(tab.labelKey)} — ${t('palette.agentHint')}`
+        : t(tab.labelKey);
+
     return (
       <button
         key={tab.id}
-        onClick={() => setViewMode(tab.id)}
-        className={`sidebar-item ${viewMode === tab.id ? 'active' : ''} ${agent ? 'agent-surface' : ''}`}
+        onClick={() => {
+          if (workspace) {
+            // Same surface as Home — only leave other tools; don't yank off the composer.
+            if (!isWorkspaceView(viewMode)) setViewMode('editor');
+            return;
+          }
+          setViewMode(tab.id);
+        }}
+        className={`sidebar-item ${active ? 'active' : ''} ${agent ? 'agent-surface' : ''}`}
         title={title}
         aria-label={title}
-        aria-current={viewMode === tab.id ? 'page' : undefined}
+        aria-current={active ? 'page' : undefined}
       >
         <Icon size={20} />
-        {viewMode === tab.id && (
+        {active && (
           <motion.div layoutId="active-nav-indicator" className="sidebar-indicator" />
         )}
       </button>
     );
   };
 
+  const goNewChat = () => setViewMode(HOME_VIEW.id);
+
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <img src="/fa7_logo.png" alt="FA7" />
+      <button
+        type="button"
+        className="sidebar-logo"
+        onClick={goNewChat}
+        title={t('sidebar.home')}
+        aria-label={t('sidebar.home')}
+      >
+        <img src="/fa7_logo.png" alt="" />
         {isDesktop && (
           <div className="desktop-badge" title="Running in Native Desktop Shell">
             <MonitorPlay size={10} />
           </div>
         )}
-      </div>
+      </button>
 
       <div className="sidebar-nav">
         {PRIMARY_VIEWS.map(item)}
@@ -87,7 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
       </div>
 
       <div className="sidebar-footer">
-        {item(SETTINGS_VIEW)}
+        <AccountMenu viewMode={viewMode} setViewMode={setViewMode} />
       </div>
     </aside>
   );

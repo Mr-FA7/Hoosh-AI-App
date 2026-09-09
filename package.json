@@ -27,6 +27,7 @@
     "test:security": "node scripts/test-security.js",
     "test:models": "node scripts/test-model-tiers.js",
     "smoke": "node scripts/smoke-test.js",
+    "test:smoke-phase16": "node scripts/smoke-phase16.js",
     "media:setup": "node scripts/media-setup.js --force-recreate",
     "media:setup:stacks": "node scripts/media-setup.js --force-recreate --stacks",
     "media:status": "node scripts/media-setup.js --status"

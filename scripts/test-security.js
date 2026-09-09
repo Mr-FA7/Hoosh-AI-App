@@ -280,6 +280,68 @@ check('manifest: secrets => elevated', validateManifest({ ...goodManifest, permi
     check('http-gate: missing manager is skip-ok (boot safety)', skip.ok === true && skip.skipped === true);
   }
 
+  // --- permission presets ---
+  {
+    const { detectPreset, applyPreset, describeCurrent } = require(path.join(ROOT, 'lib/permissionPresets'));
+    const pm = new ToolApprovalManager();
+    const safe = applyPreset(pm, 'safe');
+    check('preset: apply safe', safe.ok === true && safe.preset === 'safe');
+    check('preset: safe asks terminal', pm.needsApproval('executeCommand', { command: 'npm i' }) === true);
+    check('preset: detect safe', detectPreset(pm.getConfig()) === 'safe');
+    const full = applyPreset(pm, 'full');
+    check('preset: apply full', full.ok === true && full.yolo !== false);
+    check('preset: full yolo', pm.needsApproval('executeCommand', { command: 'rm -rf x' }) === false);
+    const desc = describeCurrent(pm);
+    check('preset: describe lists presets', Array.isArray(desc.presets) && desc.presets.length >= 2);
+  }
+
+  // --- device auth helpers ---
+  {
+    const { resolveBindHost, isLoopbackAddress, createDeviceAuth } = require(path.join(ROOT, 'lib/deviceAuth'));
+    check('bind: default localhost', resolveBindHost() === '127.0.0.1');
+    check('loopback: 127.0.0.1', isLoopbackAddress('127.0.0.1'));
+    check('loopback: ::1', isLoopbackAddress('::1'));
+    check('loopback: reject lan', !isLoopbackAddress('192.168.1.10'));
+    const auth = createDeviceAuth();
+    check('device-auth: has token', !!auth.state.deviceToken && !!auth.state.deviceId);
+    check('device-auth: tokenValid', auth.tokenValid(auth.state.deviceToken));
+    check('device-auth: reject junk', !auth.tokenValid('nope'));
+    const pair = auth.createPairingCode();
+    check('pair: start code', !!pair.code && pair.code.length === 6);
+    const bad = auth.confirmPairing('000000');
+    check('pair: reject wrong code', bad.ok === false);
+    const okPair = auth.confirmPairing(pair.code, { clientName: 'test' });
+    check('pair: confirm', okPair.ok === true && !!okPair.sessionToken);
+    check('pair: session token valid', auth.tokenValid(okPair.sessionToken));
+    const sessions = auth.listSessions();
+    check('pair: list sessions', sessions.length >= 1);
+    const rev = auth.revokeSession(okPair.sessionId);
+    check('pair: revoke session', rev.ok === true);
+    check('pair: revoked invalid', !auth.tokenValid(okPair.sessionToken));
+    const { originAllowed } = require(path.join(ROOT, 'lib/deviceAuth'));
+    check('origin: localhost ok', originAllowed('http://127.0.0.1:5173'));
+    check('origin: reject random', !originAllowed('https://evil.example'));
+  }
+
+  // --- core store schema ---
+  {
+    const { HooshCoreStore } = require(path.join(ROOT, 'lib/hooshCoreStore'));
+    const store = new HooshCoreStore(path.join(tmpHome, '.aivon-os', 'hoosh-core.sqlite'));
+    if (store.available()) {
+      store.open();
+      const ok = store.insertEvent({
+        id: 'evt-test-1',
+        type: 'test.event',
+        at: new Date().toISOString(),
+        payload: { n: 1 }
+      });
+      check('core-store: insert event', ok === true);
+      store.close();
+    } else {
+      check('core-store: skipped (no node:sqlite)', true);
+    }
+  }
+
   console.log(`\nResults: ${pass} passed, ${fail} failed (${pass + fail} total)`);
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
   process.exit(fail ? 1 : 0);

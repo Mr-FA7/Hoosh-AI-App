@@ -1,8 +1,10 @@
 # AI Hoosh — Phase 0 Architecture Correction
 
-> **Status:** WAITING FOR REVIEW — **Phase 1 is not authorized.**
-> **Date:** 2026-09-09
-> **Rule:** Inspect existing codebase. Reuse what works. Do not rebuild. Do not start Phase 1 until this document is accepted.
+> **Status:** SUPERSEDED for product topology & phases by [`docs/architecture-v2.md`](./architecture-v2.md) (FINAL ARCHITECTURE v2).  
+> **This file remains** the codebase audit & subsystem matrix (A–O). Where v2 conflicts (Control Plane + Local Runtime, phase list, Tauri necessity), **v2 wins**.  
+> **Phase 1 is not authorized** until Architecture v2 is accepted.  
+> **Date:** 2026-09-09  
+> **Rule:** Inspect existing codebase. Reuse what works. Do not rebuild. Do not start Phase 1 until Architecture v2 is accepted.
 
 This document is the corrected Phase 0 deliverable (A–O). It supersedes any proposal that assumed a greenfield Next.js/Tauri rewrite or merged Skills / MCP / Tools / Extensions into one concept.
 

@@ -318,6 +318,10 @@ const WorkflowView: React.FC = () => {
             {run.flowName} · {run.status} · {run.startedAt}
           </div>
         ))}
+        <div style={{ marginTop: 12, fontSize: 12, fontWeight: 600 }}>{t('workflows.debug')}</div>
+        <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', color: '#888', fontSize: 11 }}>
+{JSON.stringify(runs[0] || { hint: 'Run a workflow to inspect the latest run JSON.' }, null, 2)}
+        </pre>
       </div>
     </div>
   );

@@ -1,13 +1,35 @@
 const COMPANION_HOSTS = ['http://127.0.0.1:3001', 'http://localhost:3001'];
 
+let cachedDeviceToken = null;
+
+async function ensureDeviceToken() {
+  if (cachedDeviceToken) return cachedDeviceToken;
+  for (const host of COMPANION_HOSTS) {
+    try {
+      const res = await fetch(`${host}/api/v3/runtime/bootstrap`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.deviceToken) {
+        cachedDeviceToken = String(data.deviceToken);
+        return cachedDeviceToken;
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 async function proxyFetch({ path, method = 'GET', headers = {}, body }) {
   const rel = path.startsWith('http') ? new URL(path).pathname + new URL(path).search : (path.startsWith('/') ? path : `/${path}`);
   let lastErr = null;
+  const token = await ensureDeviceToken();
 
   for (const host of COMPANION_HOSTS) {
     const url = path.startsWith('http') ? path : `${host}${rel}`;
     try {
       const init = { method, headers: { ...headers } };
+      if (token) init.headers['X-Hoosh-Device-Token'] = token;
       if (body !== undefined && body !== null && method !== 'GET' && method !== 'HEAD') {
         init.body = typeof body === 'string' ? body : JSON.stringify(body);
         if (!init.headers['Content-Type'] && !init.headers['content-type']) {
@@ -39,7 +61,7 @@ async function proxyFetch({ path, method = 'GET', headers = {}, body }) {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'hoosh-bridge-ping') {
-    proxyFetch({ path: '/api/v3/ping', method: 'GET' })
+    proxyFetch({ path: '/api/v3/runtime/health', method: 'GET' })
       .then((result) => sendResponse({ ok: result.ok && result.status === 200, result }))
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
     return true;

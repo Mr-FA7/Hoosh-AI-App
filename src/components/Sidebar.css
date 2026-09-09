@@ -17,6 +17,12 @@
   margin-bottom: 32px;
   display: flex;
   justify-content: center;
+  position: relative;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 14px;
 }
 
 .sidebar-logo img {
@@ -28,6 +34,11 @@
 
 .sidebar-logo:hover img {
   transform: scale(1.1) rotate(5deg);
+}
+
+.sidebar-logo:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.7);
+  outline-offset: 4px;
 }
 
 .sidebar-nav {

@@ -48,6 +48,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
   const [isPrivate, setIsPrivate] = useState(true);
   const [publishResult, setPublishResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [permPreset, setPermPreset] = useState<'safe' | 'full' | 'custom'>('custom');
+  const [permBusy, setPermBusy] = useState(false);
+  const [runtimeDoctor, setRuntimeDoctor] = useState<{ ok?: boolean; checks?: { id: string; ok: boolean; detail: string }[] } | null>(null);
   const [extThemes, setExtThemes] = useState<any[]>([]);
 
   useEffect(() => {
@@ -72,7 +75,25 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
     fetchHw();
     fetchGithubStatus();
     fetchProjectPath();
+    axios.get(`${API_BASE}/v3/permission/preset`).then((r) => {
+      const p = String(r.data?.preset || 'custom');
+      if (p === 'safe' || p === 'full' || p === 'custom') setPermPreset(p);
+    }).catch(() => { /* runtime may be offline */ });
+    axios.get(`${API_BASE}/v3/runtime/doctor`).then((r) => setRuntimeDoctor(r.data)).catch(() => setRuntimeDoctor(null));
   }, []);
+
+  const applyPermissionPreset = async (preset: 'safe' | 'full') => {
+    setPermBusy(true);
+    try {
+      const res = await axios.post(`${API_BASE}/v3/permission/preset`, { preset });
+      if (res.data?.ok) setPermPreset(preset);
+      else setPermPreset('custom');
+    } catch {
+      /* ignore */
+    } finally {
+      setPermBusy(false);
+    }
+  };
 
   const fetchHw = async () => {
     try {
@@ -254,6 +275,51 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentTheme = 'vs-dark', o
               >
                 {th.label || th.id}
               </button>
+            ))}
+          </div>
+        )}
+      </SettingSection>
+
+      <SettingSection title={t('permission.title')} icon={Shield}>
+        <p style={{ fontSize: '12px', color: 'hsl(var(--text-secondary))', marginBottom: '12px' }}>{t('permission.hint')}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+          <button
+            type="button"
+            disabled={permBusy}
+            onClick={() => applyPermissionPreset('safe')}
+            style={{
+              padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+              border: permPreset === 'safe' ? '1px solid hsl(var(--accent))' : '1px solid hsl(var(--border))',
+              background: permPreset === 'safe' ? 'hsl(var(--accent) / 0.15)' : 'transparent',
+              color: 'hsl(var(--text-primary))'
+            }}
+          >
+            {t('permission.presetSafe')}
+          </button>
+          <button
+            type="button"
+            disabled={permBusy}
+            onClick={() => applyPermissionPreset('full')}
+            style={{
+              padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+              border: permPreset === 'full' ? '1px solid hsl(var(--accent))' : '1px solid hsl(var(--border))',
+              background: permPreset === 'full' ? 'hsl(var(--accent) / 0.15)' : 'transparent',
+              color: 'hsl(var(--text-primary))'
+            }}
+          >
+            {t('permission.presetFull')}
+          </button>
+          {permPreset === 'custom' && (
+            <span style={{ fontSize: 12, alignSelf: 'center', color: 'hsl(var(--text-secondary))' }}>{t('permission.presetCustom')}</span>
+          )}
+        </div>
+        {runtimeDoctor?.checks && (
+          <div style={{ fontSize: 12, color: 'hsl(var(--text-secondary))' }}>
+            <div style={{ marginBottom: 6, fontWeight: 600 }}>{t('permission.runtimeDoctor')}</div>
+            {runtimeDoctor.checks.map((c) => (
+              <div key={c.id} style={{ marginBottom: 4 }}>
+                {c.ok ? '✓' : '✗'} {c.id}: {c.detail}
+              </div>
             ))}
           </div>
         )}

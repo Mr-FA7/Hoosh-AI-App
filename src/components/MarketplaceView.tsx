@@ -105,6 +105,10 @@ const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onThemeApplied }) => 
 
   return (
     <div className="marketplace-view" style={{ padding: '30px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+      <div style={{ padding: '10px 14px', marginBottom: 12, borderRadius: 10, border: '1px solid hsl(var(--border) / 0.5)', fontSize: 12, color: 'hsl(var(--text-secondary))' }}>
+        {t('marketplace.freeCore')}
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '30px' }}>
         <div style={{ padding: '10px', background: 'hsl(var(--accent) / 0.1)', borderRadius: '12px' }}>
              <Package size={24} color="hsl(var(--accent))" />

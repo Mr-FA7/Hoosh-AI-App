@@ -187,7 +187,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
-    "@xterm/xterm": "^5.5.0",
+    "@xterm/xterm": "^6.0.0",
     "@xyflow/react": "^12.11.0",
     "acorn": "^8.17.0",
     "adm-zip": "^0.5.16",

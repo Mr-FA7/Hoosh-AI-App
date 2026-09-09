@@ -1,0 +1,48 @@
+Hi everyone — I’m the developer of Hoosh AI at FA7 Labs LTD.
+
+I’ve just released v1.0.0 of Hoosh AI, a local-first AI agent platform designed to let you connect the AI models and services you actually want to use.
+
+The basic idea is:
+
+Hoosh Desktop → Local Runtime/UI → Your AI Models
+
+You can bring your own models/services, including Ollama, LM Studio, and OpenAI-compatible APIs.
+
+What’s included in v1.0.0
+
+- Local Runtime
+- React-based Control Plane UI
+- Hoosh Desktop built with PyQt6
+- Localhost-based workflow
+- Support for connecting your own compatible models/services
+- Public source code for transparency and community contribution
+
+Hoosh is source-available, not conventional Open Source. The project has a specific license that allows personal/local use and community contributions while restricting unauthorized commercial redistribution and resale.
+
+Getting started
+
+Download:
+https://AIHoosh.com
+
+Source code:
+https://github.com/Mr-FA7/Hoosh-AI-App
+
+Releases:
+https://github.com/Mr-FA7/Hoosh-AI-Releases
+
+The website is primarily the place to download Hoosh, while GitHub is where the source code and development happen.
+
+One current limitation
+
+The macOS build is not currently notarized. If you're testing it on macOS, please follow the instructions in "START HERE.txt" included with the DMG.
+
+I’m especially interested in feedback from people who already use local AI or build agent tooling:
+
+- Does the bring-your-own-model approach make sense?
+- What is confusing when you first launch it?
+- What would you expect an AI agent desktop platform to do next?
+- Which integrations or workflows would actually be useful to you?
+
+I'm the developer, so feel free to ask technical questions or point out things that don't make sense. I'll be around in the comments.
+
+Thanks for checking it out!

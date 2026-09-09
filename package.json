@@ -2,8 +2,8 @@
   "name": "fa7-os",
   "version": "1.0.0",
   "description": "Hoosh AI — local-first, model-agnostic agent platform (source-available; see LICENSE)",
-  "license": "SEE LICENSE IN LICENSE",
-  "author": "Fardin Ahrari / Mr-FA7",
+  "license": "ISC",
+  "author": "",
   "homepage": "https://aihoosh.com",
   "repository": {
     "type": "git",
@@ -175,8 +175,6 @@
     ]
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "engines": {
     "node": "20"
@@ -209,6 +207,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.3",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.2",
     "vscode-oniguruma": "^2.0.1",

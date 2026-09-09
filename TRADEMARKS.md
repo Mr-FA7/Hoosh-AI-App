@@ -1,6 +1,6 @@
 # Trademarks and Branding — Hoosh AI
 
-Copyright © 2026 Fardin Ahrari / Mr-FA7.
+Copyright © 2026 Fardin Ahrari / Mr-FA7 / FA7 Labs LTD.
 
 ## What this document covers
 

@@ -5,10 +5,18 @@
 **Source:** https://github.com/Mr-FA7/Hoosh-AI-App  
 **Installers:** https://github.com/Mr-FA7/Hoosh-AI-Releases  
 
+## Reddit profile (recommended)
+
+- **Bio:** Building Hoosh AI at **FA7 Labs LTD** — local-first desktop agent platform (bring your own models). I’m the developer/creator.
+- **Website link:** https://AIHoosh.com
+- Disclose in posts: “I’m the developer (FA7 Labs LTD).”
+
+Do not make the profile look like an aggressive advertisement.
+
 ## Principles
 
 1. Every subreddit has its own rules — re-check the live sidebar before posting.
-2. Disclose: “I’m the developer/creator of Hoosh AI.”
+2. Disclose: “I’m the developer/creator of Hoosh AI (FA7 Labs LTD).”
 3. Prefer discussion and feedback over ads.
 4. Never spam, fake accounts, fake testimonials, or vote manipulation.
 5. Do **not** call Hoosh “open source.” It is **source-available** under the project LICENSE.

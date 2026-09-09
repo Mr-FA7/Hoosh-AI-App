@@ -12,7 +12,7 @@ I built Hoosh AI — local-first agent Control Plane that talks to Ollama / LM S
 
 ## Body
 
-Disclosure: I’m the developer.
+Disclosure: I’m the developer (FA7 Labs LTD).
 
 Hoosh AI is a **local-first agent platform** (UI + Local Runtime). Models are **bring-your-own** — Ollama, LM Studio, and other OpenAI-compatible APIs you configure. I’m not selling Hoosh tokens or hosted inference.
 

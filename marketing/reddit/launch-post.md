@@ -1,22 +1,23 @@
 # Launch post (general / r/SideProject style)
 
-**Status:** READY (manual publish only)  
+**Status:** PUBLISHED  
 **Primary community:** r/SideProject  
+**URL:** https://www.reddit.com/r/SideProject/comments/1wbdzzr/i_built_hoosh_ai_a_localfirst_desktop_agent/  
 **Do not cross-post identical text elsewhere.**
 
 ---
 
 ## Title
 
-I built Hoosh AI — a local-first desktop agent platform (BYO models) and I’d love technical feedback
+I built Hoosh AI — a local-first desktop agent platform (bring your own models) and I’d love technical feedback
 
 ## Body
 
-Hi — I’m the developer of **Hoosh AI**.
+Hi — I’m the developer of **Hoosh AI** (FA7 Labs LTD).
 
 ### What it is
 
-Hoosh is a **local-first, model-agnostic agent platform**: a Control Plane UI plus a Local Runtime on your machine. You bring the intelligence (Ollama, LM Studio, OpenAI-compatible APIs, etc.). The core idea is orchestration + tools + environment, not selling Hoosh-hosted inference.
+Hoosh is a **local-first agent platform that works with models you choose** (not a Hoosh-hosted model product): a Control Plane UI plus a Local Runtime on your machine. You bring the intelligence (Ollama, LM Studio, OpenAI-compatible APIs, etc.). The core idea is orchestration + tools + environment, not selling Hoosh-hosted inference.
 
 ### Why I built it
 

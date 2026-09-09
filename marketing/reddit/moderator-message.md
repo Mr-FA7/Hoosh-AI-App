@@ -8,7 +8,7 @@
 
 Subject: Developer showcase request — Hoosh AI
 
-Hi — I’m the developer of Hoosh AI, a local-first desktop AI agent platform (BYO models; Control Plane + local Runtime).
+Hi — I’m the developer of Hoosh AI (FA7 Labs LTD), a local-first desktop AI agent platform (BYO models; Control Plane + local Runtime).
 
 I read the community rules around self-promotion and wanted to ask whether a **developer showcase / feedback** post would be appropriate, or if you’d prefer a designated promotion thread / another format.
 

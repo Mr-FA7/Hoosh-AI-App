@@ -1,44 +1,41 @@
-# AI community post (LocalLLaMA / Ollama-adjacent)
+# AI / local-LLM community post (e.g. r/LocalLLaMA)
 
-**Targets:** r/LocalLLaMA (after 1/10 participation + disclosure), r/Ollama (only if rules/modmail OK).  
-**Status:** READY later — **COMMUNITY PARTICIPATION FIRST**.  
-Do **not** lead with marketing. Lead with local-model workflow.
+**Status:** READY after participation + karma requirements  
+**Action:** COMMUNITY PARTICIPATION FIRST → then POST  
+**Rules reminder:** ~1/10 self-promo; disclose affiliation; no engagement farming; check live rules/min karma.
 
 ---
 
 ## Title
 
-I built a local-first agent Control Plane that expects you to bring Ollama / LM Studio / your own API — feedback welcome
-
----
+I built Hoosh AI — local-first agent Control Plane that talks to Ollama / LM Studio / OpenAI-compatible endpoints
 
 ## Body
 
-Disclosure: I’m the developer of **Hoosh AI**.
+Disclosure: I’m the developer.
 
-### Pitch in one sentence
+Hoosh AI is a **local-first agent platform** (UI + Local Runtime). Models are **bring-your-own** — Ollama, LM Studio, and other OpenAI-compatible APIs you configure. I’m not selling Hoosh tokens or hosted inference.
 
-Hoosh is a **local-first agent environment** (UI + Local Runtime). It does **not** sell you a foundation model — you point it at Ollama, LM Studio, or other endpoints you already run.
+### Why it might interest this community
 
-### Why this might matter here
+- Runtime intended on localhost  
+- Desktop shell (PyQt WebEngine) so the app isn’t “just open Chrome to 127.0.0.1”  
+- Free core / local-first product direction  
+- Source available for inspection: https://github.com/Mr-FA7/Hoosh-AI-App  
 
-A lot of local-LLM discussion is about models and inference. Hoosh sits one layer up: projects, tools, terminal/Git-oriented agent workflows, and a desktop shell so the Control Plane isn’t “the website + a fragile bridge.”
+### Not claiming
 
-### Technical notes
+- Not “the best local AI”  
+- Not “fully private in all configurations” (optional cloud providers send whatever you configure)  
+- Not Open Source (OSI) — **source-available** with commercial redistribution limits  
 
-- Runtime binds locally by default (Architecture v2 style).  
-- Desktop shell can require a Hoosh-Desktop UA/token so random browsers aren’t the Control Plane client.  
-- Source is public and **source-available** (not OSI Open Source): https://github.com/Mr-FA7/Hoosh-AI-App  
+### Try / inspect
 
-### Download
+- https://AIHoosh.com  
+- https://github.com/Mr-FA7/Hoosh-AI-App  
 
-https://AIHoosh.com  
-Installers also on https://github.com/Mr-FA7/Hoosh-AI-Releases  
+### Feedback wanted
 
-### Honest asks
+If you run local models: what’s the minimum viable “agent + tools” surface you’d trust on your machine? What’s a deal-breaker?
 
-- What breaks first when you try a new agent shell against Ollama?  
-- Do you want stricter offline mode defaults, or easier cloud fallbacks?  
-- Any deal-breakers in a source-available (not MIT/Apache) license for tools you’d actually run?
-
-I’ll answer comments and take harsh technical criticism.
+Happy to answer architecture questions in the comments.

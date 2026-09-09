@@ -1,43 +1,52 @@
 # Developer / engineering post
 
-**Targets:** r/SideProject (alt angle), later r/LocalLLaMA (after participation), **not** r/programming unless rewritten as a pure technical article with almost no product CTA.
-
-**Status:** READY (adapt title/depth per community).
+**Status:** READY  
+**Audiences:** r/SideProject (tech-heavy), later r/LocalLLaMA after participation  
+**Lead with GitHub** when the community is technical.
 
 ---
 
 ## Title
 
-Building Hoosh’s local Runtime + desktop shell: why the website stopped being the IDE
-
----
+Building Hoosh AI: Web Control Plane + local Node Runtime + PyQt desktop shell (lessons so far)
 
 ## Body
 
-I’m the creator of **Hoosh AI**. This is a short engineering note on a product decision, not a “download now” ad.
+I’m the creator of **Hoosh AI**. Sharing architecture decisions and asking for critique from builders.
 
 ### Problem
 
-A hosted web IDE + “install a local bridge” path is fragile: browsers, Private Network Access prompts, Gatekeeper, and users who just want something that works offline for core tasks.
+Many “AI IDE” flows push you through a hosted UI or assume cloud models. I wanted:
 
-### Approach we shipped
+1. Runtime on the machine (`127.0.0.1`)
+2. BYO models
+3. A dedicated desktop shell so the Control Plane isn’t meant to run as a random browser tab against localhost
 
-1. **Marketing site only** at https://AIHoosh.com (download / pitch).  
-2. **Desktop shell** (PyQt6 WebEngine) loads the Control Plane from `127.0.0.1`.  
-3. **Local Runtime** stays Node (`companion.js`) — we did **not** rewrite the Runtime in Python.  
-4. A **desktop UA/token gate** so Chrome/Safari can’t usefully drive the local Control Plane when the shell mode is on.  
-5. Source published as **source-available** (personal use + contribution; commercial redistribution restricted) — https://github.com/Mr-FA7/Hoosh-AI-App  
+### Stack (actual)
 
-### Trade-offs
+- UI: React + TypeScript + Vite  
+- Runtime: Node / Express (`companion.js` + `lib/`)  
+- Desktop: PyQt6 WebEngine (`desktop/`) with UA/token gate  
+- Hosting for marketing site: Firebase App Hosting (`AIHoosh.com`)  
+- Electron remains optional/legacy packaging  
 
-- Unsigned Mac apps still hit Gatekeeper; we document Terminal install instead of pretending notarization exists.  
-- Shipping Qt WebEngine increases installer size.  
-- Vendored/third-party trees in the repo need careful licensing attribution.
+### Interesting engineering bits
 
-### What I’d love feedback on
+- Desktop shell starts companion, waits for health, opens Qt WebEngine with a shared token  
+- When `FA7_DESKTOP_SHELL=1`, non-shell browsers get a “use Hoosh Desktop” response instead of the full UI  
+- Packaging: PyInstaller + DMG; Gatekeeper forces Terminal-based install until Developer ID notarization  
 
-- Is gating localhost UI to the desktop shell the right UX trade-off?  
-- Prefer Electron vs PyQt for a project like this, and why?  
-- What would you want in a “doctor / first-run” flow for local agent runtimes?
+### Source / license
 
-Links if useful: https://AIHoosh.com · https://github.com/Mr-FA7/Hoosh-AI-App
+- https://github.com/Mr-FA7/Hoosh-AI-App  
+- Source-available license (personal use + contribution; commercial redistribution restricted) — see LICENSE  
+
+Download landing: https://AIHoosh.com  
+
+### Questions for other engineers
+
+- Prefer binding Runtime only on loopback forever, or optional authenticated LAN later?  
+- Any pitfalls you’ve hit with PyQt WebEngine + local SPAs?  
+- Better first-run UX for unsigned macOS apps short of notarization?
+
+I’ll engage on comments. Not looking for “upvote please” — looking for sharp feedback.

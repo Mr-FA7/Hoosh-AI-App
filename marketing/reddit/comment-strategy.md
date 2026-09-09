@@ -1,30 +1,28 @@
-# Comment strategy
+# Comment strategy (legitimate mentions only)
 
-## When mentioning Hoosh is legitimate
+## When mentioning Hoosh is OK
 
-Only if **all** are true:
+- Someone asks for a **local** AI coding/agent environment or Ollama-centered desktop workflow  
+- Someone asks how to keep agent tools on localhost  
+- A thread explicitly invites tool recommendations and the subreddit allows them  
+- You already answered the question helpfully **before** any link  
 
-1. Someone asked for a tool recommendation or described a problem Hoosh actually solves.  
-2. Subreddit rules allow product mentions (or you’re in a promo thread).  
-3. Your answer would still be useful if the link were removed.  
-4. You disclose: “I’m the developer of Hoosh AI.”  
+## When not to mention Hoosh
 
-## Template (good)
+- Unrelated career / meme / research threads  
+- “Best ChatGPT wrapper” threads where local-first isn’t the ask  
+- Communities that ban recommendations  
+- Any urge to drop links for visibility  
 
-> If you want a **local** agent Control Plane that talks to Ollama/LM Studio (bring your own models) instead of a hosted chat site, I’ve been building Hoosh AI for that — disclosure: I’m the developer. Download: https://AIHoosh.com · source: https://github.com/Mr-FA7/Hoosh-AI-App. Happy to answer setup questions.
+## Example reply (good)
 
-## Template (bad — do not use)
+> If you want something local-first where the Runtime stays on your machine and you bring Ollama/LM Studio yourself, I’ve been building Hoosh AI for that (I’m the developer — disclosure). It’s source-available, not conventional OSS. Download: https://AIHoosh.com — source: https://github.com/Mr-FA7/Hoosh-AI-App  
+> Caveat: Mac install isn’t notarized yet, so Gatekeeper needs the Terminal path. Happy to answer setup questions.
 
-> Check out my amazing AI app!!! https://AIHoosh.com 🔥🔥
+## Example reply (bad)
 
-## Never
+> Check out Hoosh!!! Best AI desktop app ever → link  
 
-- Drop links under unrelated posts  
-- Reply with the same blurb across many threads the same day  
-- Ask for upvotes  
-- Pretend to be a happy customer  
-- Call it Open Source  
+## Ratio
 
-## Account hygiene
-
-Aim for many helpful, link-free comments before any promo. Keep self-promo roughly ≤10% of activity.
+Aim for many helpful comments **without** links. Keep promotional comments rare (sitewide ~1/10 guideline).

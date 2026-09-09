@@ -1,56 +1,61 @@
-# Launch post — general (r/SideProject style)
+# Launch post (general / r/SideProject style)
 
-**Target:** communities that allow project showcases (esp. r/SideProject).  
-**Status:** READY for manual publication after live rule check.  
-**Do not** paste this unchanged into LocalLLaMA / programming / opensource.
-
----
-
-## Title options (pick one)
-
-1. I built Hoosh AI — a local-first desktop agent platform (bring your own models). Looking for feedback  
-2. Show: Hoosh AI — Control Plane + local Runtime for agent workflows on your machine  
+**Status:** READY (manual publish only)  
+**Primary community:** r/SideProject  
+**Do not cross-post identical text elsewhere.**
 
 ---
+
+## Title
+
+I built Hoosh AI — a local-first desktop agent platform (BYO models) and I’d love technical feedback
 
 ## Body
 
-Hey — I’m the developer of **Hoosh AI**.
+Hi — I’m the developer of **Hoosh AI**.
 
-I built a **local-first, model-agnostic agent platform**: a Control Plane UI plus a Local Runtime that runs on your machine. You bring the intelligence (Ollama, LM Studio, OpenAI-compatible APIs, etc.). Hoosh is about orchestration, tools, and environment — not selling you a proprietary model.
+### What it is
+
+Hoosh is a **local-first, model-agnostic agent platform**: a Control Plane UI plus a Local Runtime on your machine. You bring the intelligence (Ollama, LM Studio, OpenAI-compatible APIs, etc.). The core idea is orchestration + tools + environment, not selling Hoosh-hosted inference.
 
 ### Why I built it
 
-I wanted a desktop-oriented agent environment that stays useful offline for core work, without forcing the website to be the IDE. The public site is for discovery/download; the real product runs locally.
+I wanted a desktop-oriented workflow where the UI and Runtime stay on localhost, models can be local, and the public website is mainly for download/discovery—not the place where the IDE has to live.
 
-### What it does (verified)
+### What’s in v1.0.0 (verified)
 
-- Local Control Plane UI (projects, agent tooling, terminal/Git-oriented workflows)
-- Local Runtime (`companion`) for machine capabilities
-- Desktop shell (PyQt WebEngine) so the UI can run in a dedicated local window
-- Bring-your-own models / endpoints
-- Source available on GitHub for inspection and contribution under a **source-available** license (not a conventional Open Source license)
+- Local Runtime (`companion.js`) for project/tools workflows on `127.0.0.1`
+- React Control Plane UI
+- **Hoosh Desktop** shell (PyQt6 WebEngine) that loads the local UI and gates non-shell browsers when desktop mode is on
+- Optional Electron packaging still exists, but the PyQt shell is the primary desktop path
+- Source on GitHub; installers distributed via GitHub Releases
+- **License:** source-available (Personal Use & Community Contribution) — **not** a conventional Open Source license
 
 ### How it works (short)
 
-Marketing site → download desktop installer → app starts Local Runtime on localhost → UI loads inside the desktop shell.
+```text
+AIHoosh.com (download)
+   → Hoosh Desktop
+   → localhost Runtime + UI
+   → your models / tools
+```
 
 ### Download / source
 
-- Product / download: https://AIHoosh.com  
+- Download: https://AIHoosh.com  
 - Source: https://github.com/Mr-FA7/Hoosh-AI-App  
-- Installers / releases: https://github.com/Mr-FA7/Hoosh-AI-Releases  
+- Installers/releases: https://github.com/Mr-FA7/Hoosh-AI-Releases  
 
 ### Known limitations (honest)
 
-- macOS builds are **not Apple-notarized**, so Gatekeeper may show “Not Opened” — install via Terminal steps in the DMG (`START HERE.txt`)
-- Electron packaging exists but the primary local UI path is the PyQt desktop shell
-- Cloud providers only see what you choose to send when you configure them
+- macOS builds are **not Apple-notarized**; Gatekeeper may show “Not Opened” — install via Terminal steps in the DMG (`START HERE.txt`)
+- Large vendor trees and dependency audits are ongoing; see repo docs
+- Screenshots aren’t in the initial public docs set yet — happy to answer questions in comments
 
 ### Feedback I’m looking for
 
-1. What’s confusing in first-run install?  
-2. What agent/runtime capability would you need next?  
-3. For local-model users: does the “bring your own model” story make sense?
+1. Does the local-first + BYO-model positioning make sense?  
+2. What’s confusing in first-run (especially Mac install)?  
+3. What would you want next for agent/tooling workflows?
 
-Happy to answer technical questions in the comments. Thanks for reading — and please be kind but blunt.
+Thanks — I’ll hang out in the comments.

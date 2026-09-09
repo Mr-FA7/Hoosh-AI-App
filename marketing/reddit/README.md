@@ -1,92 +1,59 @@
-# Hoosh AI — Reddit Marketing Playbook
+# Hoosh AI — Reddit Launch Playbook (internal)
 
-**Status:** Research + assets prepared. **No posts published by automation.**  
+**Status:** Research + assets ready · **No automated posting**  
 **Website (download):** https://AIHoosh.com  
 **Source:** https://github.com/Mr-FA7/Hoosh-AI-App  
 **Installers:** https://github.com/Mr-FA7/Hoosh-AI-Releases  
 
-Re-verify each subreddit’s live rules in the sidebar / wiki **immediately before posting**. Rules change.
-
 ## Principles
 
-1. Transparent creator disclosure on every promotional mention.
-2. Quality over quantity — prefer a few relevant communities.
-3. Never spam, vote-manipulate, fake testimonials, or multi-account promote.
-4. Never call Hoosh “Open Source” — it is **source-available** (see `LICENSE`).
-5. No UTM/tracking params on Reddit links unless privacy docs explicitly cover it.
-6. Do not post where research says **DO NOT POST**.
+1. Every subreddit has its own rules — re-check the live sidebar before posting.
+2. Disclose: “I’m the developer/creator of Hoosh AI.”
+3. Prefer discussion and feedback over ads.
+4. Never spam, fake accounts, fake testimonials, or vote manipulation.
+5. Do **not** call Hoosh “open source.” It is **source-available** under the project LICENSE.
+6. Sitewide guideline: keep self-promotion roughly ≤10% of account activity.
+7. No URL shorteners, affiliates, or UTM spam.
 
-## Official links (use as-is)
-
-| Purpose | URL |
-|---------|-----|
-| Product / download | https://AIHoosh.com |
-| Source / docs | https://github.com/Mr-FA7/Hoosh-AI-App |
-| Desktop installers | https://github.com/Mr-FA7/Hoosh-AI-Releases |
-
-## Profile recommendation
-
-See [README § Profile](#reddit-profile-recommendation) below and keep bio modest.
-
-## Files in this folder
-
-| File | Purpose |
-|------|---------|
-| `community-research.md` | Research table + actions |
-| `launch-post.md` | General launch draft (SideProject-style) |
-| `developer-post.md` | Engineering / lessons-learned angle |
-| `ai-community-post.md` | Local AI / agent angle |
-| `desktop-community-post.md` | Desktop install / Mac App Pile angle |
-| `moderator-message.md` | Modmail templates (send only if you choose) |
-| `comment-strategy.md` | When mentioning Hoosh in comments is OK |
-| `launch-calendar.md` | Sustainable schedule |
-
-## Pre-post checklist
-
-Copy into every post decision:
+## Pre-publish checklist
 
 - [ ] Subreddit identified  
 - [ ] Live rules checked today  
-- [ ] Self-promotion permitted (or using required thread)  
+- [ ] Self-promotion permitted in the intended format  
 - [ ] External links permitted  
-- [ ] Mod approval obtained if required  
-- [ ] Post genuinely relevant  
-- [ ] No misleading claims  
+- [ ] Approval obtained if required  
+- [ ] Post is relevant and honest  
 - [ ] Creator disclosure included  
-- [ ] Correct website / GitHub links  
-- [ ] No tracking abuse  
-- [ ] No vote manipulation / fake engagement  
-- [ ] Not duplicate spam of identical text  
-- [ ] Asks a real question / invites feedback  
+- [ ] Links: AIHoosh.com and/or GitHub as appropriate  
+- [ ] No duplicate mass-post of identical text  
+- [ ] Ready to engage in comments for ≥2 hours  
 
 If any required item fails → **DO NOT POST**.
 
-## Reddit profile recommendation
+## Recommended posting order (quality first)
 
-**Username:** Prefer a personal/dev handle you already use (not a brand-only spam account). If creating one, a clear personal name + “builds Hoosh” in bio is better than `HooshOfficialBot`.
+1. Participate 1–2 weeks in target communities (helpful comments, no links).  
+2. `r/SideProject` — showcase + feedback ask.  
+3. `r/LocalLLaMA` — only after karma/participation; technical local-AI framing; 1/10 rule.  
+4. `r/macapps` — **App Pile megathread** first (unless Trust/Transparency path qualifies).  
+5. `r/MachineLearning` — **only** inside `[D] Self-Promotion Thread`.  
+6. `r/selfhosted` — **ASK MODS FIRST** (source-available ≠ FLOSS exception).  
+7. `r/ChatGPTCoding` — prefer designated promo thread / modmail sponsorship; not cold main-feed ads.
 
-**Bio (suggested):**
+## Assets in this folder
 
-> Building Hoosh AI — a local-first desktop agent platform (bring your own models). Creator. https://AIHoosh.com · source: github.com/Mr-FA7/Hoosh-AI-App
+| File | Use |
+|------|-----|
+| `community-research.md` | Rules research table |
+| `launch-post.md` | General launch draft |
+| `developer-post.md` | Engineering / stack audience |
+| `ai-community-post.md` | Local / coding AI audience |
+| `desktop-community-post.md` | Desktop / Mac apps audience |
+| `moderator-message.md` | Modmail templates |
+| `comment-strategy.md` | Legitimate mention examples |
+| `calendar.md` | 4-week value-first plan |
 
-**Links:** Website first; GitHub second. No affiliate links.
+## Publication policy for this repo
 
-**Behaviour:** Spend days/weeks commenting helpfully before any launch post. Keep self-promo well under ~10% of account activity (sitewide norm + many sub rules).
-
-## Publication status (automation)
-
-| Community | Status |
-|-----------|--------|
-| All researched communities | **READY** (manual) or **MOD APPROVAL REQUIRED** / **USE PROMO THREAD** / **NOT PERMITTED** — see `community-research.md` |
-| Automated Reddit posts | **NOT POSTED** |
-
-## Website ↔ GitHub consistency notes
-
-Verified from public release work:
-
-- Product name: Hoosh AI  
-- License: source-available Personal Use & Community Contribution License (not OSI Open Source)  
-- Version: 1.0.0 on GitHub Release / package.json  
-- Download: AIHoosh.com marketing + Hoosh-AI-Releases for installers  
-
-**Gap to watch:** marketing site should continue to surface version, GitHub, license, privacy/security links clearly so Reddit visitors are not confused. Fix on site if anything drifts; do not invent features on Reddit that the app does not have.
+Cursor/agents must **not** auto-submit Reddit posts.  
+Human publishes only after checklist pass. Record URLs in `posts-log.md` when posted.

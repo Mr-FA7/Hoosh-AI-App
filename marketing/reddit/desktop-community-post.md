@@ -1,25 +1,29 @@
-# Desktop community post (r/macapps App Pile format)
+# Desktop / macOS community post
 
-**Target:** r/macapps **App Pile megathread** (default for non–App Store / non-tier apps).  
-**Status:** READY for megathread comment — **not** main-feed promo unless Tier 2 transparency is met.  
-**Frequency:** at most once per developer / 30 days (per common MacApps rule summaries).
-
-Use Problem / Comparison / Pricing structure expected by the community.
+**Status:** READY for **App Pile** megathread format (r/macapps)  
+**Do not** cold-post main feed unless Trust/Transparency path is met (MAS / 100+ stars / flair / documented transparency path).
 
 ---
 
-## Megathread comment draft
+## App Pile–style comment (adapt to current megathread requirements)
 
-**Problem:** I wanted a Mac desktop agent app that runs locally (BYO Ollama/LM Studio/APIs) without making the website the IDE, and without pretending unsigned builds are notarized.
+**App:** Hoosh AI (desktop)  
+**Developer:** I’m the creator (disclose).  
+**Price:** Free for core personal use (source-available license — not a conventional OSS license; see LICENSE on GitHub).  
+**Problem:** Wanted a local-first AI agent Control Plane on the Mac without making the website the IDE.  
+**What it is:** PyQt6 WebEngine shell + local Node Runtime; BYO models (Ollama / LM Studio / APIs).  
+**Comparison:** Closer to a local agent/IDE environment than a single-chat wrapper; not a notarized Mac App Store utility.  
+**Platforms:** macOS + Windows installers; Linux via packaging scripts / source.  
+**Install caveat:** Unsigned Mac builds may show Gatekeeper “Not Opened” — use Terminal install from the DMG instructions.  
+**Download:** https://AIHoosh.com  
+**Source:** https://github.com/Mr-FA7/Hoosh-AI-App  
 
-**App:** Hoosh AI — local-first agent Control Plane + Local Runtime, with a PyQt desktop shell.
+### Feedback ask
 
-**Comparison:** Closer to “local agent/IDE environment” than a single-chat Mac App Store wrapper. Unlike browser-only AI sites, core use is meant to run on-device with your models. Unlike many “open source” tools, Hoosh is explicitly **source-available** (personal use + contribution; commercial redistribution restricted) — I’m stating that up front.
+What’s the minimum Mac install UX you’d accept for an unsigned indie tool before you’d try it?
 
-**Pricing:** Free for core local use. No Hoosh token sales for core. Download: https://AIHoosh.com · Source: https://github.com/Mr-FA7/Hoosh-AI-App · Installers: https://github.com/Mr-FA7/Hoosh-AI-Releases  
+---
 
-**Platforms:** macOS (+ Windows packaging). Node.js required for Runtime. Mac Gatekeeper: use Terminal install steps in the DMG (`START HERE.txt`) — builds are not Apple-notarized.
+## If Transparency Path / main feed becomes allowed later
 
-**Disclosure:** I’m the developer.
-
-**Feedback wanted:** first-run friction on Mac, and whether the desktop-shell-only localhost gate feels right.
+Use `launch-post.md` but lead with macOS install honesty + screenshots of the desktop window (add screenshots first).

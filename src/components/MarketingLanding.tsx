@@ -5,8 +5,8 @@
 import React, { useState } from 'react';
 import { Download, Monitor, Terminal } from 'lucide-react';
 
-const MAC_URL = 'https://github.com/Mr-FA7/Hoosh-AI-App/releases/latest/download/HooshSetup.dmg';
-const WIN_URL = 'https://github.com/Mr-FA7/Hoosh-AI-App/releases/latest/download/HooshSetup-win.zip';
+const MAC_URL = 'https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup.dmg';
+const WIN_URL = 'https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup-win.zip';
 const LEGACY_MAC = '/HooshCompanionSetup.dmg';
 const LEGACY_WIN = '/HooshBridgeSetup.exe';
 

@@ -40,11 +40,18 @@ npm run desktop:package:mac      # → public/HooshSetup.dmg
 npm run desktop:package:win      # → public/HooshSetup-win.zip (+ exe stub)
 ```
 
-Publish installers (not committed to git — too large):
+Publish installers (not committed to git — too large). Repo is private, so use the **public** releases repo:
 
 ```bash
-gh release create desktop-v1.0.0 public/HooshSetup.dmg public/HooshSetup-win.zip --title "Hoosh Desktop 1.0.0" --notes "Local-first Hoosh Desktop shell"
+gh release create desktop-v1.0.0 public/HooshSetup.dmg public/HooshSetup-win.zip \
+  --repo Mr-FA7/Hoosh-AI-Releases \
+  --title "Hoosh Desktop 1.0.0" --notes "…"
 ```
+
+Download URLs used by aihoosh.com:
+
+- https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup.dmg
+- https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup-win.zip
 
 Mac install: open DMG → right-click **Install Hoosh.command** → Open (Gatekeeper workaround until Developer ID notarization). First install runs `npm ci --omit=dev` for Runtime (one-time network).
 

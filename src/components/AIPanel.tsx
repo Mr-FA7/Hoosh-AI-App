@@ -23,6 +23,7 @@ import {
   FA7_AI_BROWSER_SYSTEM_HINT
 } from '../fa7AiBrowserProtocol';
 import { runFa7ActionsFromAssistant, stripFa7ActionTags } from '../fa7ActionRunner';
+import { publishActiveModel } from '../lib/activeModelBridge';
 import AIHeader from './hoosh/AIHeader';
 import ApprovalModal from './hoosh/ApprovalModal';
 import CheckpointPanel from './hoosh/CheckpointPanel';
@@ -1549,6 +1550,21 @@ const AIPanel: React.FC<AIPanelProps> = ({
   };
 
   useEffect(() => { if (selectedModel) checkModel(selectedModel); }, [selectedModel, models, t]);
+
+  useEffect(() => {
+    const live = loadingModelInfo?.name ? String(loadingModelInfo.name) : String(selectedModel || '').trim();
+    if (!live) {
+      publishActiveModel(null);
+      return;
+    }
+    const row = models.find((m: any) => String(m?.name || '') === live)
+      || models.find((m: any) => ollamaNamesCompatible(live, String(m?.name || '')));
+    publishActiveModel({
+      name: live,
+      source: row?.source ? String(row.source) : (loadingModelInfo?.route === 'online' ? 'cloud' : undefined),
+      provider: row?.provider ? String(row.provider) : undefined
+    });
+  }, [selectedModel, loadingModelInfo, models]);
 
   const stopGeneration = () => {
     if (abortControllerRef.current) {

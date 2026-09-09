@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, AlertTriangle, XCircle, Code } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, XCircle, Code, Cpu } from 'lucide-react';
 import { useI18n } from '../i18n/LocaleContext';
 
 interface BottomBarProps {
@@ -9,13 +9,34 @@ interface BottomBarProps {
   status?: string;
   onProblemsClick?: () => void;
   onOpenPalette?: () => void;
+  /** Real model currently selected / streaming (from AIPanel). */
+  modelName?: string | null;
+  modelSource?: string | null;
 }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-const BottomBar: React.FC<BottomBarProps> = ({ language = 'Javascript', errors = 0, warnings = 0, status = 'Ready', onProblemsClick, onOpenPalette }) => {
+function shortModelLabel(name: string): string {
+  const n = name.trim();
+  if (n.length <= 28) return n;
+  return `${n.slice(0, 12)}…${n.slice(-12)}`;
+}
+
+const BottomBar: React.FC<BottomBarProps> = ({
+  language = 'Javascript',
+  errors = 0,
+  warnings = 0,
+  status = 'Ready',
+  onProblemsClick,
+  onOpenPalette,
+  modelName,
+  modelSource
+}) => {
   const { t } = useI18n();
   const paletteHint = isMac ? t('palette.hintMac') : t('palette.hintWin');
+  const modelLabel = modelName ? shortModelLabel(modelName) : t('bottomBar.noModel');
+  const sourceHint = modelSource ? ` · ${modelSource}` : '';
+
   return (
     <div className="bottom-bar" style={{
         height: '24px',
@@ -58,6 +79,16 @@ const BottomBar: React.FC<BottomBarProps> = ({ language = 'Javascript', errors =
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Code size={12} />
             <span>{language}</span>
+        </div>
+
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', maxWidth: 220 }}
+          title={modelName ? `${modelName}${sourceHint}` : t('bottomBar.noModel')}
+        >
+            <Cpu size={12} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t('bottomBar.model')} {modelLabel}
+            </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'hsl(var(--accent))' }}>

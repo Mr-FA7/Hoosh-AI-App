@@ -248,6 +248,38 @@ check('manifest: secrets => elevated', validateManifest({ ...goodManifest, permi
       normalizeToolCall({ function: { arguments: {} } }) === null);
   }
 
+  // --- HTTP permission gate (companion routes that skip kernel.executeTool) ---
+  {
+    const { ensureHttpToolAllowed } = require(path.join(ROOT, 'lib/httpPermissionGate'));
+    const gateMgr = new ToolApprovalManager();
+    gateMgr.config.yolo = false;
+    gateMgr.config.autoApprove.terminal = false;
+    gateMgr.config.autoApprove.mcp = false;
+    gateMgr.config.autoApprove.browser = true;
+
+    const auto = await ensureHttpToolAllowed(gateMgr, 'browserAgent', { url: 'https://example.com' });
+    check('http-gate: browser auto-approve path', auto.ok === true && auto.autoApproved === true);
+
+    const pendingP = ensureHttpToolAllowed(gateMgr, 'executeCommand', { command: 'curl http://evil.test' }, { timeoutMs: 2000 });
+    // Respond deny on the pending ticket.
+    await new Promise((r) => setTimeout(r, 20));
+    const pending = gateMgr.listPending();
+    check('http-gate: terminal creates pending approval', pending.length === 1 && pending[0].tool === 'executeCommand');
+    if (pending[0]) gateMgr.respond(pending[0].id, false);
+    const denied = await pendingP;
+    check('http-gate: denied terminal returns ok:false', denied.ok === false && denied.denied === true);
+
+    const allowP = ensureHttpToolAllowed(gateMgr, 'mcpTool', { tool: 'demo:ping' }, { timeoutMs: 2000 });
+    await new Promise((r) => setTimeout(r, 20));
+    const pend2 = gateMgr.listPending();
+    if (pend2[0]) gateMgr.respond(pend2[0].id, true);
+    const allowed = await allowP;
+    check('http-gate: approved mcp returns ok:true', allowed.ok === true && allowed.approved === true);
+
+    const skip = await ensureHttpToolAllowed(null, 'executeCommand', { command: 'ls' });
+    check('http-gate: missing manager is skip-ok (boot safety)', skip.ok === true && skip.skipped === true);
+  }
+
   console.log(`\nResults: ${pass} passed, ${fail} failed (${pass + fail} total)`);
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
   process.exit(fail ? 1 : 0);

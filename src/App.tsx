@@ -35,6 +35,7 @@ import { useBreakpoint } from './lib/useBreakpoint';
 import HomeView from './components/HomeView';
 import CommandPalette from './components/CommandPalette';
 import type { ViewMode } from './shell/viewCatalog';
+import { readActiveModel, subscribeActiveModel, type ActiveModelInfo } from './lib/activeModelBridge';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -86,6 +87,7 @@ const App: React.FC = () => {
   const [agentCollapsed, setAgentCollapsed] = useState(() => {
     try { return localStorage.getItem('fa7_agent_pane_collapsed') === '1'; } catch { return false; }
   });
+  const [activeModel, setActiveModel] = useState<ActiveModelInfo | null>(() => readActiveModel());
   const [problemCounts, setProblemCounts] = useState({ errors: 0, warnings: 0 });
   const [kavoshNavigateUrl, setKavoshNavigateUrl] = useState<string | null>(null);
   const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('fa7_editor_theme') || 'vs-dark');
@@ -113,6 +115,8 @@ const App: React.FC = () => {
   useEffect(() => {
     try { localStorage.setItem('fa7_agent_pane_collapsed', agentCollapsed ? '1' : '0'); } catch { /* ignore */ }
   }, [agentCollapsed]);
+
+  useEffect(() => subscribeActiveModel(setActiveModel), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -614,6 +618,8 @@ const App: React.FC = () => {
           warnings={problemCounts.warnings}
           onProblemsClick={() => setViewMode('problems')}
           onOpenPalette={() => setPaletteOpen(true)}
+          modelName={activeModel?.name || null}
+          modelSource={activeModel?.source || activeModel?.provider || null}
           language={
             activeFile
               ? activeFile.split('.').pop()?.toUpperCase()

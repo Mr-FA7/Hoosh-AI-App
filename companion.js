@@ -45,10 +45,11 @@ const {
 const { CheckpointManager } = require('./lib/checkpointManager');
 const { LlmGateway } = require('./lib/llmGateway');
 const { ToolApprovalManager } = require('./lib/toolApproval');
+const { ensureHttpToolAllowed } = require('./lib/httpPermissionGate');
+const auditLog = require('./lib/auditLog');
 const { SkillManager } = require('./lib/skillManager');
 const { evaluateSkill } = require('./lib/skillEval');
 const { runSkillCode } = require('./lib/skillSandbox');
-const auditLog = require('./lib/auditLog');
 const { compactMessages, compactWithLlm } = require('./lib/contextCompaction');
 const gitWorkspace = require('./lib/gitWorkspace');
 const { VectorIndex } = require('./lib/vectorIndex');
@@ -1318,6 +1319,17 @@ app.get('/api/ai/system-stats', (req, res) => {
       if (blocked.some((re) => re.test(command))) {
         return res.status(400).json({ ok: false, error: 'Blocked dangerous command.' });
       }
+      // Same Permission Engine as kernel.executeTool — HTTP must not bypass it.
+      const gate = await ensureHttpToolAllowed(toolApproval, 'executeCommand', { command });
+      if (!gate.ok) {
+        auditLog.record(currentProjectRoot, {
+          actor: 'http',
+          action: 'permission.denied',
+          tool: 'executeCommand',
+          detail: command.slice(0, 200)
+        });
+        return res.status(403).json({ ok: false, error: gate.error || 'Permission denied', denied: true });
+      }
       exec(command, { cwd: getPtyCwd(), timeout: 120000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
         if (error) {
           return res.json({
@@ -2201,6 +2213,19 @@ app.get('/api/ai/system-stats', (req, res) => {
     try {
       const { toolId, arguments: toolArgs } = req.body || {};
       if (!toolId) return res.status(400).json({ ok: false, error: 'Missing toolId' });
+      const gate = await ensureHttpToolAllowed(toolApproval, 'mcpTool', {
+        tool: toolId,
+        arguments: toolArgs || {}
+      });
+      if (!gate.ok) {
+        auditLog.record(currentProjectRoot, {
+          actor: 'http',
+          action: 'permission.denied',
+          tool: 'mcpTool',
+          detail: String(toolId).slice(0, 200)
+        });
+        return res.status(403).json({ ok: false, error: gate.error || 'Permission denied', denied: true });
+      }
       const result = await mcpGateway.invoke(toolId, toolArgs || {});
       res.json({ ok: true, ...result });
     } catch (e) {
@@ -2256,6 +2281,19 @@ app.get('/api/ai/system-stats', (req, res) => {
   app.post('/api/v3/browser/agent', async (req, res) => {
     try {
       if (!currentProjectRoot) return res.status(400).json({ ok: false, error: 'No project open' });
+      const gate = await ensureHttpToolAllowed(toolApproval, 'browserAgent', {
+        goal: req.body?.goal,
+        url: req.body?.url
+      });
+      if (!gate.ok) {
+        auditLog.record(currentProjectRoot, {
+          actor: 'http',
+          action: 'permission.denied',
+          tool: 'browserAgent',
+          detail: String(req.body?.goal || req.body?.url || '').slice(0, 200)
+        });
+        return res.status(403).json({ ok: false, error: gate.error || 'Permission denied', denied: true });
+      }
       const cfg = loadSandboxConfig();
       const result = await runBrowserAgent(currentProjectRoot, {
         goal: req.body?.goal,

@@ -1,7 +1,17 @@
 {
   "name": "fa7-os",
   "version": "1.0.0",
-  "description": "FA7 OS — IDE با Fard Terminal، Kavosh و Gira",
+  "description": "Hoosh AI — local-first, model-agnostic agent platform (source-available; see LICENSE)",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Fardin Ahrari / Mr-FA7",
+  "homepage": "https://aihoosh.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mr-FA7/Hoosh-AI-App.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mr-FA7/Hoosh-AI-App/issues"
+  },
   "main": "electron-main.js",
   "scripts": {
     "dev": "concurrently -n companion,vite -c blue,green \"nodemon companion.js\" \"vite\"",

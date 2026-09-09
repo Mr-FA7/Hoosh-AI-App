@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Mr-FA7/Hoosh-AI-App/security/advisories/new
+    about: Report security issues privately (do not file a public bug with exploit details).
+  - name: Discussions
+    url: https://github.com/Mr-FA7/Hoosh-AI-App/discussions
+    about: Questions and community conversation (if Discussions are enabled).

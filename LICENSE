@@ -1,0 +1,180 @@
+HOOSH AI APP
+PERSONAL USE & COMMUNITY CONTRIBUTION LICENSE
+(Source-Available License — Not a Conventional Open Source License)
+
+Copyright © 2026 Fardin Ahrari / Mr-FA7
+All rights reserved, except as expressly granted below.
+
+-------------------------------------------------------------------------------
+PREAMBLE
+-------------------------------------------------------------------------------
+
+Hoosh AI App ("Hoosh", "Hoosh AI", or the "Software") is made available as
+source-available software. The source code is published so that individuals may
+inspect it, run it locally, modify it for personal use, and contribute
+improvements back to the project.
+
+This License is NOT a conventional Open Source license (as that term is commonly
+used by the Open Source Initiative). It does not grant an unrestricted right to
+commercially redistribute or commercially exploit the Software.
+
+By downloading, installing, copying, modifying, forking, or otherwise using the
+Software, you agree to the terms of this License. If you do not agree, do not use
+the Software.
+
+-------------------------------------------------------------------------------
+1. DEFINITIONS
+-------------------------------------------------------------------------------
+
+"Copyright Holder" means Fardin Ahrari / Mr-FA7 and any successors or assignees.
+
+"Software" means the Hoosh AI App source code, documentation, build scripts,
+packaging materials, and associated files distributed by the Copyright Holder
+under this License, excluding Third-Party Components.
+
+"You" means any individual or legal entity exercising rights under this License.
+
+"Personal Use" means use by You for your own individual, non-commercial purposes
+on computers you control, including learning, evaluation, hobby projects, and
+local development that is not offered to third parties as a paid product or
+service.
+
+"Contribution" means any code, documentation, translation, design, or other
+material You submit to the Copyright Holder (including via pull request, issue,
+or similar channel) for inclusion in the Software.
+
+"Third-Party Components" means libraries, tools, fonts, icons, models, or other
+materials that are not owned by the Copyright Holder and that are subject to
+their own licenses (see THIRD_PARTY_NOTICES.md where provided).
+
+"Commercial Use" means any use primarily intended for or directed toward
+commercial advantage or monetary compensation, including selling, licensing for
+a fee, offering as a paid hosted service, or bundling into a commercial product.
+
+-------------------------------------------------------------------------------
+2. GRANT OF RIGHTS — PERMITTED USES
+-------------------------------------------------------------------------------
+
+Subject to this License, the Copyright Holder grants You a non-exclusive,
+worldwide, royalty-free, revocable license to:
+
+(a) Inspect and download the source code;
+(b) Install and run the Software on computers You control;
+(c) Use the Software for Personal Use;
+(d) Update your local installation from official sources published by the
+    Copyright Holder;
+(e) Modify your local copy of the Software for Personal Use;
+(f) Create forks of the repository for development, study, or Contribution;
+(g) Submit bug reports, documentation, translations, and pull requests;
+(h) Share unmodified references to the official project (links to the official
+    repository, website, or releases) without implying endorsement.
+
+These rights do NOT include Commercial Use or commercial redistribution unless
+You obtain a separate written license from the Copyright Holder.
+
+-------------------------------------------------------------------------------
+3. RESTRICTIONS — WITHOUT WRITTEN PERMISSION
+-------------------------------------------------------------------------------
+
+Except as expressly permitted in Section 2, or under a separate written
+agreement with the Copyright Holder, You may NOT:
+
+(a) Sell the Software or sell modified versions of the Software;
+(b) Commercially redistribute the Software or modified versions;
+(c) Commercially redistribute installers, binaries, or packaged builds;
+(d) Repackage the Software as another commercial product;
+(e) Offer the Software (or a modified version) as a paid SaaS, hosted service,
+    or subscription product;
+(f) Sublicense the Software on commercial terms;
+(g) Remove, obscure, or alter copyright, license, or attribution notices;
+(h) Claim the Software as your original work;
+(i) Use Hoosh branding, logos, or trademarks as if your fork or product were an
+    official Hoosh release (see TRADEMARKS.md);
+(j) Represent modified versions as official Hoosh releases;
+(k) Create a substantially similar competing commercial product that is based
+    primarily on the Software.
+
+Non-commercial sharing of unmodified source links for educational discussion is
+allowed. Redistribution of modified source outside Contribution channels for
+non-commercial personal collaboration may be done only if recipients also
+receive this License and notices intact, and the redistribution is not sold or
+packaged as a commercial product.
+
+-------------------------------------------------------------------------------
+4. CONTRIBUTIONS
+-------------------------------------------------------------------------------
+
+By submitting a Contribution, You:
+
+(a) Represent that You have the right to submit it;
+(b) Grant the Copyright Holder a perpetual, worldwide, royalty-free license to
+    use, modify, sublicense, and distribute the Contribution as part of the
+    Software under this License or under terms chosen by the Copyright Holder
+    for the Software;
+(c) Agree that Contributions may be rejected, modified, or rewritten;
+(d) Agree not to submit secrets, credentials, private personal data, or
+    malicious code.
+
+Unless otherwise stated in writing, Contributions are provided "AS IS" without
+warranty.
+
+-------------------------------------------------------------------------------
+5. TRADEMARKS AND BRANDING
+-------------------------------------------------------------------------------
+
+This License does not grant rights to Hoosh names, logos, or other trademarks.
+See TRADEMARKS.md. Forks and modified versions must not present themselves as
+official Hoosh products.
+
+-------------------------------------------------------------------------------
+6. THIRD-PARTY COMPONENTS
+-------------------------------------------------------------------------------
+
+Third-Party Components remain under their respective licenses. Nothing in this
+License limits or expands those third-party licenses.
+
+-------------------------------------------------------------------------------
+7. NO WARRANTY
+-------------------------------------------------------------------------------
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR
+A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. YOU USE THE SOFTWARE AT YOUR OWN
+RISK.
+
+-------------------------------------------------------------------------------
+8. LIMITATION OF LIABILITY
+-------------------------------------------------------------------------------
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE
+FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
+ANY LOSS OF DATA, PROFITS, OR BUSINESS, ARISING FROM USE OF THE SOFTWARE.
+
+-------------------------------------------------------------------------------
+9. TERMINATION
+-------------------------------------------------------------------------------
+
+This License terminates automatically if You breach its terms. Upon termination,
+You must cease use and distribution of the Software, except that Sections 7, 8,
+and surviving obligations remain in effect. The Copyright Holder may reinstate
+rights at their discretion after a breach is cured.
+
+-------------------------------------------------------------------------------
+10. CONTACT FOR COMMERCIAL LICENSING
+-------------------------------------------------------------------------------
+
+For commercial redistribution, SaaS offering, OEM embedding, or other uses not
+permitted by this License, contact the Copyright Holder via the project's
+official GitHub repository (Issues or Discussions designated by the maintainers)
+to request a separate written agreement.
+
+-------------------------------------------------------------------------------
+11. INTERPRETATION
+-------------------------------------------------------------------------------
+
+Headings are for convenience only. If any provision is held unenforceable, the
+remainder continues in effect. This License is the complete agreement regarding
+the Software between You and the Copyright Holder, unless superseded by a signed
+written agreement.
+
+END OF LICENSE

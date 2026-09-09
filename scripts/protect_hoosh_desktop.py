@@ -3,11 +3,10 @@
 """
 Protect Hoosh Desktop Python shell with PyArmor (+ optional Cython).
 
-Registers from OneDrive regfile (never committed):
-  ~/Library/CloudStorage/OneDrive-Personal/pyarmor-regfile-11427.zip
+Pass your PyArmor registration zip via --regfile (never commit license files).
 
 Usage:
-  python scripts/protect_hoosh_desktop.py
+  python scripts/protect_hoosh_desktop.py --regfile /path/to/pyarmor-regfile.zip
   python scripts/protect_hoosh_desktop.py --skip-register
   python scripts/protect_hoosh_desktop.py --no-cython
 
@@ -27,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DESKTOP = ROOT / "desktop"
 OUT = ROOT / "build" / "desktop-protected"
-DEFAULT_REG = Path.home() / "Library/CloudStorage/OneDrive-Personal/pyarmor-regfile-11427.zip"
+DEFAULT_REG = Path(os.environ.get("PYARMOR_REGFILE", "")).expanduser() if os.environ.get("PYARMOR_REGFILE") else None
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> bool:
@@ -121,7 +120,12 @@ def do_pyarmor() -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Protect Hoosh Desktop with PyArmor + Cython")
-    ap.add_argument("--regfile", type=Path, default=DEFAULT_REG, help="Path to pyarmor-regfile zip")
+    ap.add_argument(
+        "--regfile",
+        type=Path,
+        default=DEFAULT_REG,
+        help="Path to pyarmor-regfile zip (or set PYARMOR_REGFILE)",
+    )
     ap.add_argument("--skip-register", action="store_true", help="Skip pyarmor reg step")
     ap.add_argument("--no-cython", action="store_true")
     ap.add_argument("--plain-only", action="store_true", help="Copy sources only (no PyArmor)")
@@ -145,7 +149,10 @@ def main() -> int:
         return 0
 
     if not args.skip_register:
-        register_pyarmor(args.regfile)
+        if not args.regfile:
+            print("[protect] No --regfile / PYARMOR_REGFILE — skipping register (use --skip-register to silence)")
+        else:
+            register_pyarmor(args.regfile)
 
     if not do_pyarmor():
         print("[protect] PyArmor gen failed — plain copy fallback")

@@ -20,9 +20,7 @@ Escape hatch (allow Chrome against local Runtime): `FA7_ALLOW_BROWSER=1`.
 
 ## Protect (PyArmor + optional Cython)
 
-Regfile (local only — **never commit**):
-
-`~/Library/CloudStorage/OneDrive-Personal/pyarmor-regfile-11427.zip`
+Regfile (local only — **never commit**): place your PyArmor registration zip outside the repo and pass `--regfile /path/to/pyarmor-regfile.zip` to `scripts/protect_hoosh_desktop.py`.
 
 ```bash
 pip install pyarmor cython

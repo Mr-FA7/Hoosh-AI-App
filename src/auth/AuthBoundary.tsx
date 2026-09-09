@@ -1,15 +1,20 @@
 /**
- * Renders the app only when signed in; otherwise the sign in / sign up screen.
- * Shows a neutral splash while the first auth state resolves so the sign-in
- * form doesn't flash for users who are already signed in.
+ * Hosted web → marketing only.
+ * Local / desktop → signed-in app (or sign-in gate).
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import AuthGate from '../components/AuthGate';
+import MarketingLanding from '../components/MarketingLanding';
+import { isHostedWebApp } from '../runtimeEnv';
 
 const AuthBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, initializing } = useAuth();
+
+  if (isHostedWebApp()) {
+    return <MarketingLanding />;
+  }
 
   if (initializing) {
     return (

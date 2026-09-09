@@ -1,7 +1,15 @@
 node_modules/
 dist/
 dist_electron/
+dist_desktop/
 build/
+*.pyarmor*
+.pyarmor/
+# Large desktop installers — ship via GitHub Releases, not git
+public/HooshSetup.dmg
+public/HooshSetup.exe
+public/HooshSetup-win.zip
+
 models/
 *.log
 .DS_Store

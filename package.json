@@ -30,7 +30,13 @@
     "test:smoke-phase16": "node scripts/smoke-phase16.js",
     "media:setup": "node scripts/media-setup.js --force-recreate",
     "media:setup:stacks": "node scripts/media-setup.js --force-recreate --stacks",
-    "media:status": "node scripts/media-setup.js --status"
+    "media:status": "node scripts/media-setup.js --status",
+    "desktop": "python3 desktop/main.py",
+    "desktop:protect": "python3 scripts/protect_hoosh_desktop.py",
+    "desktop:build": "npm run build && python3 scripts/protect_hoosh_desktop.py --plain-only && python3 -m PyInstaller --noconfirm --distpath dist_desktop --workpath build/pyinstaller-desktop desktop/Hoosh.spec",
+    "desktop:package:mac": "node scripts/package-hoosh-desktop-mac.mjs",
+    "desktop:package:win": "node scripts/package-hoosh-desktop-win.mjs",
+    "desktop:ship": "npm run build && npm run desktop:protect && npm run desktop:package:mac && npm run desktop:package:win"
   },
   "build": {
     "appId": "com.fa7.os",

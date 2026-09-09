@@ -44,11 +44,11 @@ export async function sendBridgeCommand(cmd: string, args: Record<string, any> =
   }
 }
 
-/**
- * Checks if the application is running inside the Desktop Shell.
- */
+/** True inside Hoosh Desktop (PyQt) or legacy FA7 desktop UA. */
 export function isDesktopShell(): boolean {
-  return navigator.userAgent.includes("FA7-Desktop-Shell");
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /Hoosh-Desktop\//i.test(ua) || ua.includes('FA7-Desktop-Shell');
 }
 
 /**

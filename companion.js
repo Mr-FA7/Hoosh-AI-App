@@ -225,10 +225,73 @@ async function main() {
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers',
       req.headers['access-control-request-headers'] ||
-      'Content-Type,Authorization,X-Requested-With,X-Hoosh-Device-Token,X-Hoosh-Runtime-Token');
+      'Content-Type,Authorization,X-Requested-With,X-Hoosh-Device-Token,X-Hoosh-Runtime-Token,X-Hoosh-Desktop-Token');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+
+  // Desktop shell lock: when FA7_DESKTOP_SHELL=1, only Hoosh Desktop (UA + token) may use the Control Plane UI/API.
+  // Exceptions: health/bootstrap/doctor for CLI, and valid device-auth tokens (CLI/tools).
+  // Escape hatch for local debugging: FA7_ALLOW_BROWSER=1
+  const desktopShellMode = process.env.FA7_DESKTOP_SHELL === '1' || process.env.FA7_DESKTOP_SHELL === 'true';
+  const desktopToken = String(process.env.FA7_DESKTOP_TOKEN || '').trim();
+  const desktopUaMarker = String(process.env.FA7_DESKTOP_UA_MARKER || 'Hoosh-Desktop').trim() || 'Hoosh-Desktop';
+  const allowBrowserEscape = process.env.FA7_ALLOW_BROWSER === '1' || process.env.FA7_ALLOW_BROWSER === 'true';
+
+  function hasDesktopShellCredential(req) {
+    if (!desktopToken) return false;
+    const headerTok = String(req.headers['x-hoosh-desktop-token'] || '').trim();
+    if (headerTok && headerTok === desktopToken) return true;
+    const ua = String(req.headers['user-agent'] || '');
+    const needle = `${desktopUaMarker}/${desktopToken}`;
+    return ua.includes(needle);
+  }
+
+  const DESKTOP_GATE_PUBLIC = new Set([
+    '/api/v3/runtime/health',
+    '/api/v3/runtime/bootstrap',
+    '/api/v3/runtime/doctor',
+  ]);
+
+  if (desktopShellMode && desktopToken && !allowBrowserEscape) {
+    app.use((req, res, next) => {
+      if (req.method === 'OPTIONS') return next();
+      const p = req.path || '';
+      if (DESKTOP_GATE_PUBLIC.has(p) || p.startsWith('/api/v3/runtime/health')) return next();
+      if (hasDesktopShellCredential(req)) return next();
+      // Device token from CLI still allowed for API (deviceAuth runs later for enforcement)
+      const deviceTok = String(req.headers['x-hoosh-device-token'] || req.headers['x-hoosh-runtime-token'] || '').trim();
+      if (deviceTok && p.startsWith('/api/')) return next();
+
+      const wantsHtml = (req.headers.accept || '').includes('text/html') || p === '/' || !p.startsWith('/api');
+      if (wantsHtml && !p.startsWith('/api')) {
+        res.status(403).type('html').send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hoosh Desktop required</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:ui-sans-serif,system-ui,sans-serif;background:#0b1220;color:#e2e8f0;}
+  .box{max-width:28rem;padding:2rem;text-align:center}
+  h1{font-size:1.25rem;margin:0 0 .75rem}
+  p{color:#94a3b8;line-height:1.55;margin:0 0 1.25rem;font-size:.95rem}
+  a{display:inline-block;padding:.65rem 1.1rem;border-radius:.5rem;background:#2563eb;color:#fff;
+    text-decoration:none;font-weight:600;font-size:.9rem}
+</style></head><body><div class="box">
+  <h1>Open Hoosh Desktop</h1>
+  <p>This local Control Plane only runs inside the Hoosh Desktop app — not in Chrome or Safari.</p>
+  <a href="https://aihoosh.com">Download at aihoosh.com</a>
+</div></body></html>`);
+        return;
+      }
+      res.status(403).json({
+        error: 'hoosh_desktop_required',
+        message: 'Use Hoosh Desktop to access the local Control Plane.',
+        download: 'https://aihoosh.com',
+      });
+    });
+    console.log(`[FA7 OS] Desktop shell gate ON · marker=${desktopUaMarker}`);
+  }
+
   app.use(bodyParser.json({ limit: '5mb' }));
 
   const coreStore = new HooshCoreStore();
@@ -5120,8 +5183,8 @@ app.get('/api/ai/system-stats', (req, res) => {
     }
   }
 
-  // Packaged Electron loads the UI from companion so /assets/* resolve correctly (file:// breaks absolute paths).
-  if (process.env.FA7_ELECTRON_MODE) {
+  // Packaged Electron / Hoosh Desktop load the UI from companion so /assets/* resolve correctly.
+  if (process.env.FA7_ELECTRON_MODE || desktopShellMode) {
     const distDir = path.join(__dirname, 'dist');
     app.use(express.static(distDir, { index: false }));
     app.use((req, res, next) => {

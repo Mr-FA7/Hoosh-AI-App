@@ -234,7 +234,7 @@
     "innosetup-compiler": "^6.3.1",
     "nodemon": "^3.1.14",
     "playwright": "^1.61.0",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vite": "^8.0.2",
     "wait-on": "^9.0.4"
   }

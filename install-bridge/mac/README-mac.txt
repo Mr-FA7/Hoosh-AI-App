@@ -1,27 +1,23 @@
-Hoosh Companion — macOS
-=======================
+Hoosh Companion — macOS install
+================================
 
-ONE-CLICK INSTALL (recommended)
-  1. Open HooshCompanionSetup.dmg
-  2. Double-click “Install Hoosh Companion”
-  3. Click Install
-  4. The app is copied to ~/Applications and starts automatically
-  5. When Chrome asks “aihoosh.com wants to access other apps”, click ALLOW
+IMPORTANT (macOS security)
+  Apple shows “Not Opened” for apps that are not notarized.
+  Do NOT double-click HooshCompanion.app first.
 
-If macOS says the app can’t be opened:
+INSTALL (works around Gatekeeper)
+  1. Open this disk image
+  2. Right-click  “Install Hoosh Companion.command”
+  3. Choose Open → Open
+  4. Allow Terminal if macOS asks
+  5. Wait for install + companion start
+  6. In Chrome, Allow “access other apps” for aihoosh.com
+
+If you already saw “Not Opened”
   System Settings → Privacy & Security → scroll down → Open Anyway
-  (unsigned downloads need this once)
+  Then run “Install Hoosh Companion.command” as above.
 
-WHAT IT DOES
-  - Starts the Hoosh companion in the background (no Terminal window)
-  - Opens https://aihoosh.com
-  - On first run it may download Hoosh and install dependencies (~1–2 min)
+After install, Hoosh Companion lives in ~/Applications.
+Re-run the same .command anytime to start/stop it.
 
-REQUIREMENTS
-  - Node.js (https://nodejs.org) — the app opens the download page if missing
-  - git — only if Hoosh isn’t already on this Mac (first-time clone)
-
-TO STOP
-  Open Hoosh Companion again from Applications and choose “Stop”.
-
-Logs: ~/.hoosh/companion.log and ~/.hoosh/companion.log.run
+https://aihoosh.com

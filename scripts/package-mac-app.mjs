@@ -2,11 +2,9 @@
 /**
  * Build macOS one-click installer: public/HooshCompanionSetup.dmg
  *
- * User flow: download DMG → open → double-click "Install Hoosh Companion"
- * → app copied to ~/Applications → companion starts.
- *
- * Staging uses os.tmpdir() because hdiutil fails on paths with spaces
- * (this repo lives under "Hoosh AI").
+ * Gatekeeper blocks unsigned .app double-clicks ("Not Opened").
+ * Primary entry is therefore a .command that runs in Terminal and
+ * executes the companion binary directly (bypasses the .app GUI block).
  */
 import { execFileSync } from 'node:child_process';
 import {
@@ -38,74 +36,165 @@ if (!existsSync(srcApp) || !existsSync(srcExe)) {
 }
 
 chmodSync(srcExe, 0o755);
+
+// Ad-hoc sign (helps a little; still not notarized without Apple Developer ID)
+try {
+  execFileSync('/usr/bin/codesign', ['--force', '--deep', '-s', '-', srcApp], { stdio: 'inherit' });
+} catch {
+  console.warn('codesign ad-hoc skipped');
+}
+
 rmSync(workRoot, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
 const payloadApp = path.join(stage, 'HooshCompanion.app');
 execFileSync('/usr/bin/ditto', [srcApp, payloadApp], { stdio: 'inherit' });
 chmodSync(path.join(payloadApp, 'Contents', 'MacOS', 'HooshCompanion'), 0o755);
+try {
+  execFileSync('/usr/bin/codesign', ['--force', '--deep', '-s', '-', payloadApp], { stdio: 'inherit' });
+} catch { /* ignore */ }
 
-const installerApp = path.join(stage, 'Install Hoosh Companion.app');
-const installerMacOS = path.join(installerApp, 'Contents', 'MacOS');
-mkdirSync(installerMacOS, { recursive: true });
-mkdirSync(path.join(installerApp, 'Contents', 'Resources'), { recursive: true });
-
-writeFileSync(
-  path.join(installerApp, 'Contents', 'Info.plist'),
-  `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>Install Hoosh Companion</string>
-  <key>CFBundleDisplayName</key><string>Install Hoosh Companion</string>
-  <key>CFBundleIdentifier</key><string>com.fa7.hoosh.companion.installer</string>
-  <key>CFBundleVersion</key><string>0.2.0</string>
-  <key>CFBundleShortVersionString</key><string>0.2.0</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>InstallHooshCompanion</string>
-  <key>LSMinimumSystemVersion</key><string>10.13</string>
-  <key>NSHighResolutionCapable</key><true/>
-</dict>
-</plist>
-`
-);
-
-const installerScript = `#!/bin/bash
+// Primary: Terminal-based installer (works without Apple notarization)
+const installCommand = `#!/bin/bash
+# Hoosh Companion — one-click install (run from Terminal; bypasses “Not Opened” .app block)
+set +e
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-SELF_APP="$(cd "$(dirname "$0")/../.." && pwd)"
-DMG_ROOT="$(cd "$SELF_APP/.." && pwd)"
-SRC="$DMG_ROOT/HooshCompanion.app"
+cd "$(dirname "$0")" || exit 1
+
+SRC="$(pwd)/HooshCompanion.app"
 DEST_DIR="$HOME/Applications"
 DEST="$DEST_DIR/HooshCompanion.app"
-alert()  { /usr/bin/osascript -e "display dialog \\"$1\\" with title \\"Hoosh Companion\\" buttons {\\"OK\\"} default button 1 with icon caution" >/dev/null 2>&1; }
-notify() { /usr/bin/osascript -e "display notification \\"$1\\" with title \\"Hoosh Companion\\"" >/dev/null 2>&1; }
-ask()    { /usr/bin/osascript -e "button returned of (display dialog \\"$1\\" with title \\"Hoosh Companion\\" buttons {\\"Cancel\\",\\"Install\\"} default button \\"Install\\" with icon note)" 2>/dev/null; }
-xattr -dr com.apple.quarantine "$SELF_APP" >/dev/null 2>&1 || true
-xattr -dr com.apple.quarantine "$SRC" >/dev/null 2>&1 || true
+BIN="$DEST/Contents/MacOS/HooshCompanion"
+
+clear 2>/dev/null
+echo ""
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║     Hoosh Companion — Installer      ║"
+echo "  ╚══════════════════════════════════════╝"
+echo ""
+
+# Clear download quarantine on everything in this volume / folder
+xattr -cr "$(pwd)" >/dev/null 2>&1
+xattr -dr com.apple.quarantine "$(pwd)" >/dev/null 2>&1
+
 if [ ! -d "$SRC" ]; then
-  alert "HooshCompanion.app not found next to the installer. Re-download HooshCompanionSetup.dmg from aihoosh.com."
+  echo "ERROR: HooshCompanion.app not found next to this installer."
+  echo "Re-download HooshCompanionSetup.dmg from https://aihoosh.com"
+  echo ""
+  read -r -p "Press Enter to close…"
   exit 1
 fi
-CHOICE="$(ask "Install Hoosh Companion to Applications and start it?\\\\n\\\\n(First launch may ask you to allow the app in System Settings → Privacy & Security.)")"
-[ "$CHOICE" = "Install" ] || exit 0
+
 mkdir -p "$DEST_DIR"
 rm -rf "$DEST"
-/usr/bin/ditto "$SRC" "$DEST" || { alert "Could not copy the app to $DEST_DIR"; exit 1; }
-chmod +x "$DEST/Contents/MacOS/HooshCompanion"
-xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1 || true
-notify "Installed. Starting companion…"
-open "$DEST"
-exit 0
+echo "→ Installing to $DEST …"
+/usr/bin/ditto "$SRC" "$DEST"
+chmod +x "$BIN"
+xattr -cr "$DEST" >/dev/null 2>&1
+xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1
+
+# Re-sign ad-hoc after copy (quarantine strip can confuse Gatekeeper)
+codesign --force --deep -s - "$DEST" >/dev/null 2>&1 || true
+
+echo "→ Starting companion (via Terminal — avoids macOS “Not Opened” block)…"
+echo ""
+
+# CRITICAL: run the executable directly instead of \`open Foo.app\`
+# \`open\` triggers Gatekeeper UI for unsigned apps; direct exec does not.
+"$BIN"
+STATUS=$?
+
+echo ""
+if [ $STATUS -eq 0 ]; then
+  echo "✓ Done. Keep this window until companion finishes first-time setup,"
+  echo "  then you can close it. Companion keeps running in the background."
+else
+  echo "Companion exited with code $STATUS."
+  echo "If macOS still blocked something:"
+  echo "  System Settings → Privacy & Security → Open Anyway"
+  open "x-apple.systempreferences:com.apple.preference.security" 2>/dev/null \\
+    || open "x-apple.systempreferences:com.apple.Settings.PrivacySecurity.extension" 2>/dev/null \\
+    || true
+fi
+echo ""
+read -r -p "Press Enter to close…"
+exit $STATUS
 `;
 
-const installerBin = path.join(installerMacOS, 'InstallHooshCompanion');
-writeFileSync(installerBin, installerScript, { mode: 0o755 });
-chmodSync(installerBin, 0o755);
+writeFileSync(path.join(stage, 'Install Hoosh Companion.command'), installCommand, { mode: 0o755 });
+chmodSync(path.join(stage, 'Install Hoosh Companion.command'), 0o755);
 
-const readmeText = existsSync(readmeSrc)
-  ? readFileSync(readmeSrc, 'utf8')
-  : 'Double-click “Install Hoosh Companion”.\n';
+// Optional GUI helper that only opens the .command (still may be blocked once)
+const helperApp = path.join(stage, 'If Needed — Open Installer.app');
+const helperMacOS = path.join(helperApp, 'Contents', 'MacOS');
+mkdirSync(helperMacOS, { recursive: true });
+writeFileSync(
+  path.join(helperApp, 'Contents', 'Info.plist'),
+  `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>Open Installer</string>
+  <key>CFBundleIdentifier</key><string>com.fa7.hoosh.companion.openinstall</string>
+  <key>CFBundleVersion</key><string>0.2.1</string>
+  <key>CFBundleShortVersionString</key><string>0.2.1</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleExecutable</key><string>OpenInstaller</string>
+  <key>LSMinimumSystemVersion</key><string>10.13</string>
+</dict></plist>`
+);
+writeFileSync(
+  path.join(helperMacOS, 'OpenInstaller'),
+  `#!/bin/bash
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+CMD="$DIR/Install Hoosh Companion.command"
+/usr/bin/osascript <<EOF
+display dialog "macOS blocks unsigned apps with “Not Opened”.
+
+Use this instead:
+1. Close this dialog
+2. Right-click “Install Hoosh Companion.command”
+3. Choose Open → Open
+4. Allow Terminal if asked
+
+That path installs and starts Hoosh without the malware warning." buttons {"Open Privacy Settings", "OK"} default button "OK" with title "Hoosh Companion" with icon caution
+EOF
+BTN=$?
+open "x-apple.systempreferences:com.apple.preference.security" 2>/dev/null || true
+open -R "$CMD" 2>/dev/null || true
+`,
+  { mode: 0o755 }
+);
+chmodSync(path.join(helperMacOS, 'OpenInstaller'), 0o755);
+try {
+  execFileSync('/usr/bin/codesign', ['--force', '--deep', '-s', '-', helperApp], { stdio: 'pipe' });
+} catch { /* ignore */ }
+
+const readmeText = `Hoosh Companion — macOS install
+================================
+
+IMPORTANT (macOS security)
+  Apple shows “Not Opened” for apps that are not notarized.
+  Do NOT double-click HooshCompanion.app first.
+
+INSTALL (works around Gatekeeper)
+  1. Open this disk image
+  2. Right-click  “Install Hoosh Companion.command”
+  3. Choose Open → Open
+  4. Allow Terminal if macOS asks
+  5. Wait for install + companion start
+  6. In Chrome, Allow “access other apps” for aihoosh.com
+
+If you already saw “Not Opened”
+  System Settings → Privacy & Security → scroll down → Open Anyway
+  Then run “Install Hoosh Companion.command” as above.
+
+After install, Hoosh Companion lives in ~/Applications.
+Re-run the same .command anytime to start/stop it.
+
+https://aihoosh.com
+`;
 writeFileSync(path.join(stage, 'README.txt'), readmeText);
+writeFileSync(readmeSrc, readmeText);
 
 mkdirSync(publicDir, { recursive: true });
 rmSync(tmpDmg, { force: true });
@@ -128,16 +217,17 @@ execFileSync(
 copyFileSync(tmpDmg, dmgOut);
 
 rmSync(zipOut, { force: true });
-execFileSync('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', payloadApp, zipOut], {
-  stdio: 'inherit'
-});
-if (existsSync(readmeSrc)) {
-  execFileSync('/usr/bin/zip', ['-j', zipOut, readmeSrc], { stdio: 'inherit' });
-}
+// Zip includes .command + .app for users who prefer zip
+const zipStage = path.join(workRoot, 'zip-stage');
+mkdirSync(zipStage, { recursive: true });
+execFileSync('/usr/bin/ditto', [payloadApp, path.join(zipStage, 'HooshCompanion.app')]);
+copyFileSync(path.join(stage, 'Install Hoosh Companion.command'), path.join(zipStage, 'Install Hoosh Companion.command'));
+chmodSync(path.join(zipStage, 'Install Hoosh Companion.command'), 0o755);
+writeFileSync(path.join(zipStage, 'README.txt'), readmeText);
+execFileSync('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', zipStage, zipOut], { stdio: 'inherit' });
 
 rmSync(workRoot, { recursive: true, force: true });
 
 const dmgKb = Math.round(statSync(dmgOut).size / 1024);
 console.log(`Packaged → public/HooshCompanionSetup.dmg (${dmgKb} KB)`);
-console.log('Also refreshed → public/hoosh-bridge-setup-mac.zip (contains .app)');
-console.log('Serve at: /HooshCompanionSetup.dmg');
+console.log('Primary entry: Install Hoosh Companion.command (Terminal — bypasses Not Opened)');

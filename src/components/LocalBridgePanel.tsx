@@ -85,8 +85,9 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
               <li>این صفحه را <strong>Refresh</strong> کنید</li>
             </> : <>
               <li>فایل <strong>HooshCompanionSetup.dmg</strong> را باز کنید</li>
-              <li>روی <strong>Install Hoosh Companion</strong> دابل‌کلیک کنید و Install بزنید</li>
-              <li>اگر macOS بلاک کرد: System Settings → Privacy &amp; Security → <strong>Open Anyway</strong></li>
+              <li>روی <strong>Install Hoosh Companion.command</strong> <em>راست‌کلیک</em> → <strong>Open</strong> → Open</li>
+              <li>اگر Terminal پرسید اجازه بدهید — این مسیر هشدار «Not Opened» را دور می‌زند</li>
+              <li>اگر قبلاً بلاک شده: System Settings → Privacy &amp; Security → <strong>Open Anyway</strong></li>
               <li>وقتی Chrome پرسید «access other apps»، <strong>Allow</strong> بزنید</li>
             </>}
           </ol>

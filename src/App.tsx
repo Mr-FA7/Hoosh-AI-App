@@ -33,6 +33,8 @@ import { isDesktopShell } from './lib/pythonBridge';
 import { wireExtensionKeybindings, loadExtensionKeybindings } from './lib/extensionKeybindings';
 import { useBreakpoint } from './lib/useBreakpoint';
 import HomeView from './components/HomeView';
+import CommandPalette from './components/CommandPalette';
+import type { ViewMode } from './shell/viewCatalog';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -79,9 +81,11 @@ const App: React.FC = () => {
   const [proposals, setProposals] = useState<any[]>([]);
   const [missionDiffZone, setMissionDiffZone] = useState<{ fileName: string; original: string; proposed: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<
-    'home' | 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media' | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems'
-  >('home');
+  const [viewMode, setViewMode] = useState<ViewMode>('home');
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [agentCollapsed, setAgentCollapsed] = useState(() => {
+    try { return localStorage.getItem('fa7_agent_pane_collapsed') === '1'; } catch { return false; }
+  });
   const [problemCounts, setProblemCounts] = useState({ errors: 0, warnings: 0 });
   const [kavoshNavigateUrl, setKavoshNavigateUrl] = useState<string | null>(null);
   const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('fa7_editor_theme') || 'vs-dark');
@@ -105,6 +109,27 @@ const App: React.FC = () => {
       window.removeEventListener('fa7-problems-updated', refreshProblems);
     };
   }, [projectRoot]);
+
+  useEffect(() => {
+    try { localStorage.setItem('fa7_agent_pane_collapsed', agentCollapsed ? '1' : '0'); } catch { /* ignore */ }
+  }, [agentCollapsed]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        setAgentCollapsed((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('fa7_editor_theme', currentTheme);
@@ -533,7 +558,7 @@ const App: React.FC = () => {
           {/* `display: contents` keeps .ai-panel a direct flex child while still
               letting us hide the pane on mobile WITHOUT unmounting it, so the
               conversation survives toggling between work and chat. */}
-          <div style={{ display: (viewMode === 'home' || (isMobile && mobilePane !== 'chat')) ? 'none' : 'contents' }}>
+          <div style={{ display: (viewMode === 'home' || agentCollapsed || (isMobile && mobilePane !== 'chat')) ? 'none' : 'contents' }}>
           <AIPanel
             activeFile={activeFile}
             currentContent={content}
@@ -588,6 +613,7 @@ const App: React.FC = () => {
           errors={problemCounts.errors}
           warnings={problemCounts.warnings}
           onProblemsClick={() => setViewMode('problems')}
+          onOpenPalette={() => setPaletteOpen(true)}
           language={
             activeFile
               ? activeFile.split('.').pop()?.toUpperCase()
@@ -604,6 +630,24 @@ const App: React.FC = () => {
                         : 'NO FILE'
           }
         />
+
+        {!isMobile && viewMode !== 'home' && agentCollapsed && (
+          <button type="button" className="agent-peek" onClick={() => setAgentCollapsed(false)}>
+            {t('layout.showAgent')}
+          </button>
+        )}
+
+        <CommandPalette
+          open={paletteOpen}
+          viewMode={viewMode}
+          onClose={() => setPaletteOpen(false)}
+          onNavigate={(mode) => {
+            setViewMode(mode);
+            if (mode === 'home') setAgentCollapsed(false);
+          }}
+          onToggleAgent={() => setAgentCollapsed((v) => !v)}
+          agentCollapsed={agentCollapsed}
+        />
   
         {/* Overlays */}
         <AnimatePresence>
@@ -612,7 +656,7 @@ const App: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              style={{ position: 'absolute', bottom: 40, right: 400, zIndex: 100 }}
+              style={{ position: 'absolute', bottom: 40, right: agentCollapsed ? 16 : 400, zIndex: 100 }}
             >
               <ProposalUI proposals={proposals} onApply={handleApplyProposal} onClose={() => setProposals([])} />
             </motion.div>

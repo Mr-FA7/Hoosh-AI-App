@@ -1,77 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Cpu, Terminal, Globe, PlayCircle, Activity, Settings, Package, MonitorPlay, GitBranch, AlertTriangle, Layers, Sparkles, MoreHorizontal, MessageSquarePlus } from 'lucide-react';
+import { MoreHorizontal, MonitorPlay } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useI18n } from '../i18n/LocaleContext';
+import {
+  ADVANCED_VIEWS,
+  BUILD_VIEWS,
+  PRIMARY_VIEWS,
+  SECONDARY_IDS,
+  SETTINGS_VIEW,
+  type ViewEntry,
+  type ViewMode
+} from '../shell/viewCatalog';
 import './Sidebar.css';
 
-export type ViewMode =
-  | 'home' | 'editor' | 'engine' | 'terminal' | 'vmlab' | 'stacks' | 'workflows' | 'media'
-  | 'browser' | 'preview' | 'marketplace' | 'uat' | 'settings' | 'git' | 'problems';
+export type { ViewMode };
 
 interface SidebarProps {
   viewMode: ViewMode;
-  setViewMode: (mode: any) => void;
+  setViewMode: (mode: ViewMode) => void;
   isDesktop?: boolean;
 }
-
-/**
- * The rail used to be 14 undifferentiated icons. Everything is still reachable,
- * but it is now tiered so the daily loop is obvious and the agent-infrastructure
- * surfaces (VM sandboxes, UAT runs, engine internals) stop competing with it.
- *
- * primary  — the everyday editor loop
- * build    — creation surfaces you visit deliberately
- * advanced — mostly driven by the agent; a human opens them to inspect
- */
-const PRIMARY = [
-  { id: 'home', icon: <MessageSquarePlus size={20} />, labelKey: 'sidebar.home' },
-  { id: 'editor', icon: <Layout size={20} />, labelKey: 'sidebar.neuralEditor' },
-  { id: 'terminal', icon: <Terminal size={20} />, labelKey: 'sidebar.terminal' },
-  { id: 'git', icon: <GitBranch size={20} />, labelKey: 'sidebar.git' },
-  { id: 'problems', icon: <AlertTriangle size={20} />, labelKey: 'sidebar.problems' },
-  { id: 'preview', icon: <PlayCircle size={20} />, labelKey: 'sidebar.activePreview' }
-] as const;
-
-const BUILD = [
-  { id: 'marketplace', icon: <Package size={20} />, labelKey: 'sidebar.giraMarketplace' },
-  { id: 'stacks', icon: <Layers size={20} />, labelKey: 'sidebar.stacks' },
-  { id: 'workflows', icon: <GitBranch size={20} />, labelKey: 'sidebar.workflows' },
-  { id: 'media', icon: <Sparkles size={20} />, labelKey: 'sidebar.mediaStudio' },
-  { id: 'browser', icon: <Globe size={20} />, labelKey: 'sidebar.worldView' }
-] as const;
-
-const ADVANCED = [
-  { id: 'engine', icon: <Cpu size={20} />, labelKey: 'sidebar.giraEngineering' },
-  { id: 'vmlab', icon: <MonitorPlay size={20} />, labelKey: 'sidebar.vmMatrix' },
-  { id: 'uat', icon: <Activity size={20} />, labelKey: 'sidebar.uatFeedback' }
-] as const;
-
-const SECONDARY_IDS = new Set<string>([...BUILD, ...ADVANCED].map((t) => t.id));
 
 const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) => {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
 
-  // Never hide the view the user is actually in.
   useEffect(() => {
     if (SECONDARY_IDS.has(viewMode)) setExpanded(true);
   }, [viewMode]);
 
-  const item = (tab: { id: string; icon: React.ReactNode; labelKey: string }) => (
-    <button
-      key={tab.id}
-      onClick={() => setViewMode(tab.id)}
-      className={`sidebar-item ${viewMode === tab.id ? 'active' : ''}`}
-      title={t(tab.labelKey)}
-      aria-label={t(tab.labelKey)}
-      aria-current={viewMode === tab.id ? 'page' : undefined}
-    >
-      {tab.icon}
-      {viewMode === tab.id && (
-        <motion.div layoutId="active-nav-indicator" className="sidebar-indicator" />
-      )}
-    </button>
-  );
+  const item = (tab: ViewEntry) => {
+    const Icon = tab.Icon;
+    const agent = tab.audience === 'agent';
+    const title = agent ? `${t(tab.labelKey)} — ${t('palette.agentHint')}` : t(tab.labelKey);
+    return (
+      <button
+        key={tab.id}
+        onClick={() => setViewMode(tab.id)}
+        className={`sidebar-item ${viewMode === tab.id ? 'active' : ''} ${agent ? 'agent-surface' : ''}`}
+        title={title}
+        aria-label={title}
+        aria-current={viewMode === tab.id ? 'page' : undefined}
+      >
+        <Icon size={20} />
+        {viewMode === tab.id && (
+          <motion.div layoutId="active-nav-indicator" className="sidebar-indicator" />
+        )}
+      </button>
+    );
+  };
 
   return (
     <aside className="sidebar">
@@ -85,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
       </div>
 
       <div className="sidebar-nav">
-        {PRIMARY.map(item)}
+        {PRIMARY_VIEWS.map(item)}
 
         <div className="sidebar-divider" role="separator" />
 
@@ -102,16 +79,15 @@ const Sidebar: React.FC<SidebarProps> = ({ viewMode, setViewMode, isDesktop }) =
         {expanded && (
           <>
             <div className="sidebar-group-label">{t('sidebar.groupBuild')}</div>
-            {BUILD.map(item)}
+            {BUILD_VIEWS.map(item)}
             <div className="sidebar-group-label">{t('sidebar.groupAdvanced')}</div>
-            {ADVANCED.map(item)}
+            {ADVANCED_VIEWS.map(item)}
           </>
         )}
       </div>
 
-      {/* Settings is a destination, not part of the working loop — pin it. */}
       <div className="sidebar-footer">
-        {item({ id: 'settings', icon: <Settings size={20} />, labelKey: 'sidebar.neuralConfig' })}
+        {item(SETTINGS_VIEW)}
       </div>
     </aside>
   );

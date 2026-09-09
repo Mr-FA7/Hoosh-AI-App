@@ -44,6 +44,23 @@ body, html, #root {
   background-image: radial-gradient(circle at 50% -20%, hsl(var(--accent) / 0.05), transparent);
 }
 
+.agent-peek {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 40;
+  writing-mode: vertical-rl;
+  background: hsl(var(--bg-panel));
+  color: hsl(var(--text-secondary));
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  padding: 12px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .sidebar {
   width: 64px;
   flex-shrink: 0;

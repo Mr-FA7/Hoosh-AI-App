@@ -114,6 +114,10 @@
 .sidebar-more svg { transition: transform 0.18s ease; }
 .sidebar-more.open svg { transform: rotate(90deg); }
 
+.sidebar-item.agent-surface {
+  color: hsl(var(--text-secondary) / 0.7);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding-top: 8px;

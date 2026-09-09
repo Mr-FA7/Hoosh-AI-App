@@ -16,7 +16,9 @@ type Props = { compact?: boolean; status: BridgeStatus };
 
 const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
   const { connected, checking, refresh } = status;
-  const [os] = useState(() => navigator.userAgent.includes('Mac') ? 'mac' : 'win');
+  const [os, setOs] = useState<'mac' | 'win'>(() =>
+    navigator.userAgent.includes('Mac') ? 'mac' : 'win'
+  );
 
   if (!isHostedWebApp()) return null;
 
@@ -64,7 +66,7 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
 
           {/* Big download button */}
           <a
-            href={os === 'mac' ? '/hoosh-bridge-setup-mac.zip' : '/HooshBridgeSetup.exe'}
+            href={os === 'mac' ? '/HooshCompanionSetup.dmg' : '/HooshBridgeSetup.exe'}
             download
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -73,7 +75,7 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
             }}
           >
             <Download size={15} />
-            {os === 'mac' ? 'دانلود برای macOS' : 'دانلود Hoosh Companion (Windows)'}
+            {os === 'mac' ? 'دانلود Hoosh Companion (macOS)' : 'دانلود Hoosh Companion (Windows)'}
           </a>
 
           <ol style={{ fontSize: 11, color: '#94a3b8', paddingLeft: 18, margin: '0 0 14px', lineHeight: 1.8 }}>
@@ -82,9 +84,10 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
               <li>نصب کنید — همه چیز خودکار راه‌اندازی می‌شود</li>
               <li>این صفحه را <strong>Refresh</strong> کنید</li>
             </> : <>
-              <li>zip را باز کنید، روی <strong>HooshCompanion.app</strong> راست‌کلیک → <strong>Open</strong> (فقط بار اول، برای رد کردن Gatekeeper)</li>
+              <li>فایل <strong>HooshCompanionSetup.dmg</strong> را باز کنید</li>
+              <li>روی <strong>Install Hoosh Companion</strong> دابل‌کلیک کنید و Install بزنید</li>
+              <li>اگر macOS بلاک کرد: System Settings → Privacy &amp; Security → <strong>Open Anyway</strong></li>
               <li>وقتی Chrome پرسید «access other apps»، <strong>Allow</strong> بزنید</li>
-              <li>خودکار وصل می‌شود — نیازی به باز نگه‌داشتن ترمینال نیست</li>
             </>}
           </ol>
 
@@ -97,7 +100,7 @@ const LocalBridgePanel: React.FC<Props> = ({ compact = false, status }) => {
                 border: `1px solid ${os === o ? '#2563eb' : '#334155'}`,
                 color: os === o ? '#fff' : '#94a3b8',
               }}
-                onClick={() => {/* readonly for now */}}>
+                onClick={() => setOs(o)}>
                 {o === 'win' ? '🪟 Windows' : '🍎 Mac'}
               </button>
             ))}

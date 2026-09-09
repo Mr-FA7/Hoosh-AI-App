@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,18 +42,33 @@ function main() {
     path.join(publicDir, 'hoosh-bridge-setup-win.zip')
   );
 
-  zipDir(
-    ['Start-Hoosh-Bridge.command', 'README.md'],
-    installDir,
-    path.join(publicDir, 'hoosh-bridge-setup-mac.zip')
-  );
+  // macOS: prefer one-click DMG (HooshCompanionSetup.dmg). Do NOT overwrite
+  // it with a legacy .command zip — that package is built by bridge:installer:mac.
+  if (process.platform === 'darwin') {
+    try {
+      execFileSync(process.execPath, [path.join(root, 'scripts', 'package-mac-app.mjs')], {
+        stdio: 'inherit',
+        cwd: root
+      });
+    } catch (e) {
+      console.warn('bridge:pack: mac DMG build failed —', e.message || e);
+      zipDir(
+        ['Start-Hoosh-Bridge.command', 'README.md'],
+        installDir,
+        path.join(publicDir, 'hoosh-bridge-setup-mac.zip')
+      );
+    }
+  } else if (!fs.existsSync(path.join(publicDir, 'HooshCompanionSetup.dmg'))) {
+    console.warn('bridge:pack: skip mac DMG (not darwin). Existing public/HooshCompanionSetup.dmg left untouched if present.');
+  }
 
   console.log('Downloads will be served at:');
   console.log('  /HooshBridgeSetup.exe              (Windows installer — recommended)');
+  console.log('  /HooshCompanionSetup.dmg           (macOS installer — recommended)');
   console.log('  /hoosh-local-bridge.zip            (Chrome extension)');
   console.log('  /hoosh-local-bridge-firefox.zip    (Firefox extension)');
   console.log('  /hoosh-bridge-setup-win.zip');
-  console.log('  /hoosh-bridge-setup-mac.zip');
+  console.log('  /hoosh-bridge-setup-mac.zip        (mac .app zip fallback)');
 }
 
 main();

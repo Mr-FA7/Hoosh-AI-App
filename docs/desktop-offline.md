@@ -53,9 +53,19 @@ Download URLs used by aihoosh.com:
 - https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup.dmg
 - https://github.com/Mr-FA7/Hoosh-AI-Releases/releases/latest/download/HooshSetup-win.zip
 
-Mac install: open DMG → right-click **Install Hoosh.command** → Open (Gatekeeper workaround until Developer ID notarization). First install runs `npm ci --omit=dev` for Runtime (one-time network).
+Mac install (Gatekeeper / “Not Opened”):
 
-Requires **Node.js** on PATH for Runtime.
+1. Open the DMG.
+2. Open **Terminal** (do not double-click `Hoosh.app` or the `.command`).
+3. Paste:
+
+```bash
+xattr -cr "/Volumes/Hoosh Desktop" 2>/dev/null; bash "/Volumes/Hoosh Desktop/install.sh"
+```
+
+4. Later: `bash "$HOME/Applications/Start Hoosh.command"`
+
+First install runs `npm ci --omit=dev` for Runtime (one-time network). Requires **Node.js**.
 
 ## Offline after install
 

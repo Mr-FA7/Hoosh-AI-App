@@ -133,14 +133,21 @@ try {
   console.warn('codesign ad-hoc skipped');
 }
 
-const installCommand = `#!/bin/bash
-set +e
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-cd "$(dirname "$0")" || exit 1
-SRC="$(pwd)/Hoosh.app"
+// Shared install body — used by .command AND plain install.sh
+// Gatekeeper on Sequoia+ blocks unsigned .app AND .command double-clicks with “Not Opened”.
+// Reliable path: open Terminal.app (trusted), paste one line from START HERE.txt.
+const installBody = `set +e
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+# Resolve DMG volume / folder that contains this script
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE" || exit 1
+
+SRC="$HERE/Hoosh.app"
 DEST_DIR="$HOME/Applications"
 DEST="$DEST_DIR/Hoosh.app"
 BIN="$DEST/Contents/MacOS/Hoosh"
+LAUNCHER="$DEST_DIR/Start Hoosh.command"
 
 clear 2>/dev/null
 echo ""
@@ -149,17 +156,22 @@ echo "  ║        Hoosh Desktop — Installer     ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 
-xattr -cr "$(pwd)" >/dev/null 2>&1
-xattr -dr com.apple.quarantine "$(pwd)" >/dev/null 2>&1
+# Strip download quarantine (harmless if already clear)
+xattr -cr "$HERE" >/dev/null 2>&1
+xattr -dr com.apple.quarantine "$HERE" >/dev/null 2>&1
 
 if [ ! -d "$SRC" ]; then
-  echo "ERROR: Hoosh.app not found. Re-download HooshSetup.dmg from https://aihoosh.com"
+  echo "ERROR: Hoosh.app not found next to this installer."
+  echo "Open the HooshSetup.dmg disk image first, then re-run."
+  echo ""
   read -r -p "Press Enter to close…"
   exit 1
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "ERROR: Node.js not found. Install from https://nodejs.org then re-run this installer."
+  echo "ERROR: Node.js is required for Hoosh Runtime."
+  echo "Install from https://nodejs.org then run this installer again."
+  echo ""
   read -r -p "Press Enter to close…"
   exit 1
 fi
@@ -168,7 +180,8 @@ mkdir -p "$DEST_DIR"
 rm -rf "$DEST"
 echo "→ Installing to $DEST …"
 /usr/bin/ditto "$SRC" "$DEST"
-chmod +x "$BIN"
+chmod +x "$BIN" 2>/dev/null
+# Never use \`open Hoosh.app\` — that triggers Gatekeeper. Run binary from Terminal.
 xattr -cr "$DEST" >/dev/null 2>&1
 xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1
 codesign --force --deep -s - "$DEST" >/dev/null 2>&1 || true
@@ -177,30 +190,110 @@ RUNTIME="$DEST/Contents/Resources/runtime"
 if [ -f "$RUNTIME/package.json" ] && [ ! -d "$RUNTIME/node_modules" ]; then
   echo "→ Installing Runtime dependencies (first run, needs network once)…"
   (cd "$RUNTIME" && npm ci --omit=dev) || (cd "$RUNTIME" && npm install --omit=dev) || {
-    echo "WARNING: npm install failed — open Hoosh after fixing network/Node."
+    echo "WARNING: npm install failed — fix network/Node, then re-run installer."
   }
 fi
 
-echo "→ Launching Hoosh Desktop via Terminal…"
+# Launcher that always starts via Terminal binary (avoids “Not Opened” on Hoosh.app)
+cat > "$LAUNCHER" << 'LAUNCH'
+#!/bin/bash
+set +e
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+APP="$HOME/Applications/Hoosh.app"
+BIN="$APP/Contents/MacOS/Hoosh"
+xattr -cr "$APP" >/dev/null 2>&1
+xattr -dr com.apple.quarantine "$APP" >/dev/null 2>&1
+if [ ! -x "$BIN" ]; then
+  echo "Hoosh not found at $APP — re-run the installer from the DMG."
+  read -r -p "Press Enter…"
+  exit 1
+fi
+echo "Starting Hoosh Desktop…"
+exec "$BIN"
+LAUNCH
+chmod +x "$LAUNCHER"
+xattr -cr "$LAUNCHER" >/dev/null 2>&1
+xattr -dr com.apple.quarantine "$LAUNCHER" >/dev/null 2>&1
+
+echo ""
+echo "✓ Installed."
+echo "  Later: open Terminal and run:"
+echo "    bash \\"$HOME/Applications/Start Hoosh.command\\""
+echo "  (Do not double-click Hoosh.app — macOS blocks unsigned apps.)"
+echo ""
+echo "→ Launching Hoosh Desktop now…"
 echo ""
 "$BIN"
+STATUS=$?
 echo ""
+if [ $STATUS -ne 0 ]; then
+  echo "Exit code $STATUS."
+  echo "If macOS still blocked something:"
+  echo "  System Settings → Privacy & Security → Open Anyway"
+  open "x-apple.systempreferences:com.apple.preference.security" 2>/dev/null \\
+    || open "x-apple.systempreferences:com.apple.Settings.PrivacySecurity.extension" 2>/dev/null \\
+    || true
+fi
 read -r -p "Press Enter to close…"
+exit $STATUS
 `;
 
+const installSh = `#!/bin/bash
+# Run from Terminal (recommended). Double-click may show “Not Opened”.
+${installBody}`;
+
+const installCommand = `#!/bin/bash
+# Prefer: open Terminal → paste the line from “START HERE.txt”
+${installBody}`;
+
+writeFileSync(path.join(stage, 'install.sh'), installSh);
+chmodSync(path.join(stage, 'install.sh'), 0o755);
 writeFileSync(path.join(stage, 'Install Hoosh.command'), installCommand);
 chmodSync(path.join(stage, 'Install Hoosh.command'), 0o755);
+
+writeFileSync(path.join(stage, 'START HERE.txt'), `HOOSH DESKTOP — MAC INSTALL (read this)
+=======================================
+
+macOS shows “Not Opened” for unsigned apps. That is normal until we have
+an Apple Developer ID. Do NOT double-click Hoosh.app.
+
+HOW TO INSTALL (works every time)
+---------------------------------
+1. Open the HooshSetup.dmg (this window).
+2. Open the Terminal app (Spotlight: Terminal).
+3. Copy-paste ONE line, then press Return:
+
+xattr -cr "/Volumes/Hoosh Desktop" 2>/dev/null; bash "/Volumes/Hoosh Desktop/install.sh"
+
+4. Allow Terminal if macOS asks. Wait for install + first launch.
+
+IF THE VOLUME NAME DIFFERS
+--------------------------
+After opening the DMG, run:
+
+cd /Volumes && ls
+# then:
+xattr -cr "/Volumes/<the-folder-name>"
+bash "/Volumes/<the-folder-name>/install.sh"
+
+AFTER INSTALL
+-------------
+Start Hoosh from Terminal (not Finder double-click):
+
+bash "$HOME/Applications/Start Hoosh.command"
+
+Optional: System Settings → Privacy & Security → Open Anyway
+(only if something was blocked once).
+
+Needs Node.js: https://nodejs.org
+`);
 
 writeFileSync(path.join(stage, 'README.txt'), `Hoosh Desktop
 ==============
 
-1. Right-click "Install Hoosh.command" → Open → Open
-2. Or drag Hoosh.app to ~/Applications and run Install Hoosh.command
+See START HERE.txt — paste the Terminal one-liner. Do not double-click Hoosh.app.
 
-Requires Node.js for Local Runtime (https://nodejs.org).
-Unsigned builds need Terminal / Open Anyway until Apple Developer ID notarization.
-
-Offline: after install, core UI + Runtime + local models work without the website.
+Requires Node.js (https://nodejs.org).
 `);
 
 rmSync(tmpDmg, { force: true });

@@ -211,6 +211,36 @@ const MarketingLanding: React.FC = () => {
         </p>
       </section>
 
+      {os === 'mac' && (
+        <section className="hm-section">
+          <h2>
+            <Terminal size={18} style={{ verticalAlign: 'middle', marginRight: 8 }} aria-hidden />
+            Mac: if you see “Not Opened”
+          </h2>
+          <p>
+            Unsigned builds are blocked by Gatekeeper. Do not double-click Hoosh.app. Open the DMG, open Terminal, paste:
+          </p>
+          <pre className="hm-code" style={{
+            marginTop: '1rem',
+            padding: '0.85rem 1rem',
+            overflowX: 'auto',
+            fontSize: '0.78rem',
+            lineHeight: 1.5,
+            background: 'rgba(0,0,0,0.35)',
+            border: '1px solid rgba(232,238,247,0.12)',
+            borderRadius: '0.45rem',
+            color: '#c8d6e5',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+          }}>
+{`xattr -cr "/Volumes/Hoosh Desktop" 2>/dev/null; bash "/Volumes/Hoosh Desktop/install.sh"`}
+          </pre>
+          <p style={{ marginTop: '0.85rem' }}>
+            Later starts: <code style={{ color: '#9ec5ff' }}>bash &quot;$HOME/Applications/Start Hoosh.command&quot;</code>
+          </p>
+        </section>
+      )}
+
       <section className="hm-section">
         <h2>
           <Terminal size={18} style={{ verticalAlign: 'middle', marginRight: 8 }} aria-hidden />

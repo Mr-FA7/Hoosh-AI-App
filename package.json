@@ -188,7 +188,7 @@
     "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.11.0",
     "acorn": "^8.17.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.1",
     "autoprefixer": "^10.4.27",
     "axios": "^1.13.6",
     "body-parser": "^2.2.2",
